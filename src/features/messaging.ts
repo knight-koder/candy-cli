@@ -23,22 +23,27 @@ export const kafkaFeature: FeatureConfig = {
   ],
   injection: { moduleName: 'KafkaModule', importPath: './kafka/kafka.module' },
   dockerServices: {
-    zookeeper: {
-      image: 'confluentinc/cp-zookeeper:latest',
-      environment: { ZOOKEEPER_CLIENT_PORT: 2181, ZOOKEEPER_TICK_TIME: 2000 },
-      ports: ['22181:2181'],
-    },
     kafka: {
-      image: 'confluentinc/cp-kafka:latest',
-      depends_on: ['zookeeper'],
+      image: 'apache/kafka:latest',
       ports: ['9092:9092'],
       environment: {
-        KAFKA_BROKER_ID: 1,
-        KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181',
+        KAFKA_NODE_ID: 1,
+        KAFKA_PROCESS_ROLES: 'broker,controller',
+        KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093',
         KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092',
+        KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER',
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT',
+        KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093',
         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1,
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1,
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1,
       },
     },
+    'kafka-init': {
+      image: 'apache/kafka:latest',
+      depends_on: ['kafka'],
+      command: "bash -c 'until /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic <%= projectName %>.reply --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1; do echo waiting for kafka; sleep 2; done'"
+    }
   },
 };
 

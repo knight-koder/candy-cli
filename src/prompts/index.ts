@@ -1,4 +1,4 @@
-import inquirer from 'inquirer';
+import { input, select, confirm, checkbox } from '@inquirer/prompts';
 
 export interface PromptAnswers {
   projectName: string;
@@ -16,100 +16,121 @@ export interface PromptAnswers {
 }
 
 export async function runPrompts(initialProjectName?: string): Promise<PromptAnswers> {
-  const answers = await inquirer.prompt<PromptAnswers>([
-    {
-      type: 'input',
-      name: 'projectName',
-      message: 'What is the name of your project?',
-      default: initialProjectName || 'my-microservice',
-      validate: (input) => input ? true : 'Project name cannot be empty',
-      when: !initialProjectName,
-    },
-    {
-      type: 'list',
-      name: 'packageManager',
-      message: 'Which package manager do you want to use?',
-      choices: ['npm', 'yarn', 'pnpm'],
-      default: 'npm',
-    },
-    {
-      type: 'checkbox',
-      name: 'protocols',
-      message: 'Select the communication protocols to support:',
-      choices: ['REST', 'GraphQL', 'gRPC', 'WebSockets'],
-      default: ['REST'],
-      validate: (input) => input.length > 0 ? true : 'You must select at least one protocol',
-    },
-    {
-      type: 'list',
-      name: 'httpAdapter',
-      message: 'Which HTTP adapter do you want to use?',
-      choices: ['Express', 'Fastify'],
-      default: 'Express',
-      when: (answers: Partial<PromptAnswers>) =>
-        (answers.protocols || []).includes('REST') ||
-        (answers.protocols || []).includes('GraphQL') ||
-        (answers.protocols || []).includes('WebSockets'),
-    },
-    {
-      type: 'confirm',
-      name: 'messagingQueue',
-      message: 'Do you want to configure an asynchronous messaging queue?',
-      default: false,
-    },
-    {
-      type: 'list',
-      name: 'queueType',
-      message: 'Which messaging queue do you want to use?',
-      choices: ['Kafka', 'RabbitMQ', 'BullMQ'],
-      default: 'Kafka',
-      when: (answers) => answers.messagingQueue,
-    },
-    {
-      type: 'confirm',
-      name: 'redisCache',
-      message: 'Do you want to include Redis for caching?',
-      default: false,
-    },
-    {
-      type: 'list',
-      name: 'logger',
-      message: 'Which logger do you want to configure?',
-      choices: ['Winston', 'Pino', 'Morgan', 'None'],
-      default: 'Winston',
-    },
-    {
-      type: 'list',
-      name: 'observability',
-      message: 'Which tracing & metrics solution do you want?',
-      choices: ['OpenTelemetry', 'Prometheus', 'None'],
-      default: 'OpenTelemetry',
-    },
-    {
-      type: 'confirm',
-      name: 'apiDocs',
-      message: 'Do you want to generate API documentation (Swagger)?',
-      default: true,
-      when: (answers: Partial<PromptAnswers>) => (answers.protocols || []).includes('REST'),
-    },
-    {
-      type: 'confirm',
-      name: 'opossum',
-      message: 'Do you want to include a Circuit Breaker (Opossum) for synchronous outbound HTTP/gRPC calls?',
-      default: false,
-    },
-    {
-      type: 'confirm',
-      name: 'dlqAndRetries',
+  const projectName = initialProjectName || await input({
+    message: 'What is the name of your project?',
+    default: 'my-microservice',
+    validate: (val) => val ? true : 'Project name cannot be empty'
+  });
+
+  const packageManager = await select({
+    message: 'Which package manager do you want to use? (Use arrow keys)',
+    choices: [
+      { value: 'npm', name: 'npm' },
+      { value: 'yarn', name: 'yarn' },
+      { value: 'pnpm', name: 'pnpm' }
+    ],
+    default: 'npm'
+  }) as 'npm' | 'yarn' | 'pnpm';
+
+  const protocols = await checkbox({
+    message: 'Select the communication protocols to support: (Space to select, Enter to confirm)',
+    choices: [
+      { value: 'REST', name: 'REST', checked: true },
+      { value: 'GraphQL', name: 'GraphQL' },
+      { value: 'gRPC', name: 'gRPC' },
+      { value: 'WebSockets', name: 'WebSockets' }
+    ],
+    validate: (arr) => arr.length > 0 ? true : 'You must select at least one protocol'
+  });
+
+  let httpAdapter: 'Express' | 'Fastify' | undefined = undefined;
+  if (protocols.includes('REST') || protocols.includes('GraphQL') || protocols.includes('WebSockets')) {
+    httpAdapter = await select({
+      message: 'Which HTTP adapter do you want to use? (Use arrow keys)',
+      choices: [
+        { value: 'Express', name: 'Express (Recommended for compatibility)' },
+        { value: 'Fastify', name: 'Fastify (High performance)' }
+      ],
+      default: 'Express'
+    }) as 'Express' | 'Fastify';
+  }
+
+  const messagingQueue = await confirm({
+    message: 'Do you want to configure an asynchronous messaging queue?',
+    default: false
+  });
+
+  let queueType: 'Kafka' | 'RabbitMQ' | 'BullMQ' | undefined = undefined;
+  let dlqAndRetries = false;
+  if (messagingQueue) {
+    queueType = await select({
+      message: 'Which messaging queue do you want to use? (Use arrow keys)',
+      choices: [
+        { value: 'Kafka', name: 'Kafka' },
+        { value: 'RabbitMQ', name: 'RabbitMQ' },
+        { value: 'BullMQ', name: 'BullMQ' }
+      ],
+      default: 'Kafka'
+    }) as 'Kafka' | 'RabbitMQ' | 'BullMQ';
+
+    dlqAndRetries = await confirm({
       message: 'Do you want to configure Dead Letter Queue (DLQ) and Retries for your Message Queue?',
-      default: true,
-      when: (answers) => answers.messagingQueue,
-    }
-  ]);
+      default: true
+    });
+  }
+
+  const redisCache = await confirm({
+    message: 'Do you want to include Redis for caching?',
+    default: false
+  });
+
+  const logger = await select({
+    message: 'Which logger do you want to configure?',
+    choices: [
+      { value: 'Winston', name: 'Winston' },
+      { value: 'Pino', name: 'Pino' },
+      { value: 'Morgan', name: 'Morgan (HTTP only)' },
+      { value: 'None', name: 'None' }
+    ],
+    default: 'Winston'
+  }) as 'Winston' | 'Pino' | 'Morgan' | 'None';
+
+  const observability = await select({
+    message: 'Which tracing & metrics solution do you want?',
+    choices: [
+      { value: 'OpenTelemetry', name: 'OpenTelemetry' },
+      { value: 'Prometheus', name: 'Prometheus' },
+      { value: 'None', name: 'None' }
+    ],
+    default: 'OpenTelemetry'
+  }) as 'OpenTelemetry' | 'Prometheus' | 'None';
+
+  let apiDocs = false;
+  if (protocols.includes('REST')) {
+    apiDocs = await confirm({
+      message: 'Do you want to generate API documentation (Swagger)?',
+      default: true
+    });
+  }
+
+  const opossum = await confirm({
+    message: 'Do you want to include a Circuit Breaker (Opossum) for synchronous outbound HTTP/gRPC calls?',
+    default: false
+  });
 
   return {
-    ...answers,
-    projectName: initialProjectName || answers.projectName,
+    projectName,
+    packageManager,
+    protocols,
+    httpAdapter,
+    messagingQueue,
+    queueType,
+    redisCache,
+    logger,
+    observability,
+    apiDocs,
+    opossum,
+    dlqAndRetries
   };
 }
 
@@ -119,21 +140,18 @@ export interface AddFeatureAnswers {
 }
 
 export async function runAddPrompts(availableFeatures: string[]): Promise<AddFeatureAnswers> {
-  const answers = await inquirer.prompt<AddFeatureAnswers>([
-    {
-      type: 'list',
-      name: 'feature',
-      message: 'Select the feature you want to add to your microservice:',
-      choices: availableFeatures,
-    },
-    {
-      type: 'confirm',
-      name: 'dlqAndRetries',
-      message: 'Configure Dead Letter Queue (DLQ) and Retries for this queue?',
-      default: true,
-      when: (answers: Partial<AddFeatureAnswers>) => ['Kafka', 'RabbitMQ', 'BullMQ'].includes(answers.feature || ''),
-    }
-  ]);
+  const feature = await select({
+    message: 'Select the feature you want to add to your microservice: (Use arrow keys)',
+    choices: availableFeatures.map(f => ({ value: f, name: f }))
+  });
 
-  return answers;
+  let dlqAndRetries = false;
+  if (['Kafka', 'RabbitMQ', 'BullMQ'].includes(feature)) {
+    dlqAndRetries = await confirm({
+      message: 'Configure Dead Letter Queue (DLQ) and Retries for this queue?',
+      default: true
+    });
+  }
+
+  return { feature, dlqAndRetries };
 }

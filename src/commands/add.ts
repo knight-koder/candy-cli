@@ -5,9 +5,9 @@ import { FEATURE_HELP } from '../constants.js';
 
 export function registerAddCommand(program: Command): void {
   program
-    .command('add')
+    .command('add [featureName]')
     .description(`Add a new feature to an existing project.\n\nAvailable features:${FEATURE_HELP}`)
-    .action(async () => {
+    .action(async (featureName?: string) => {
       console.log(chalk.blue.bold('\n🔧 Adding a new feature to your microservice...\n'));
       try {
         const { FEATURES } = await import('../generator/features.js');
@@ -17,7 +17,23 @@ export function registerAddCommand(program: Command): void {
 
         const { addFeature } = await import('../generator/engine.js');
 
-        const { feature, dlqAndRetries } = await runAddPrompts(featureList);
+        let feature = featureName;
+        let dlqAndRetries = true;
+
+        if (!feature || !featureList.includes(feature)) {
+          if (feature && !featureList.includes(feature)) {
+            console.log(chalk.yellow(`Warning: Feature "${feature}" is not recognized. Please select from the list.`));
+          }
+          const promptResult = await runAddPrompts(featureList);
+          feature = promptResult.feature;
+          dlqAndRetries = promptResult.dlqAndRetries;
+        } else if (['Kafka', 'RabbitMQ', 'BullMQ'].includes(feature)) {
+           const { confirm } = await import('@inquirer/prompts');
+           dlqAndRetries = await confirm({
+             message: `Configure Dead Letter Queue (DLQ) and Retries for ${feature}?`,
+             default: true
+           });
+        }
 
         const answers: PromptAnswers = {
           projectName: '',

@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-#!/usr/bin/env node
 import {
   runAddPrompts,
   runPrompts
-} from "./chunk-3BVZWNEQ.js";
+} from "./chunk-M5LOJY2U.js";
 
 // src/index.ts
 import { Command } from "commander";
@@ -16,7 +15,7 @@ function registerInitCommand(program2) {
     try {
       const answers = await runPrompts(projectName);
       console.log(chalk.green("\n\u2713 Configuration complete. Starting generation..."));
-      const { generateProject } = await import("./engine-BBR6EQXY.js");
+      const { generateProject } = await import("./engine-SS3JXX5S.js");
       await generateProject(answers);
       console.log(chalk.green.bold("\n\u{1F389} Microservice scaffolded successfully!\n"));
     } catch (error) {
@@ -54,15 +53,30 @@ var FEATURE_HELP = FEATURE_NAMES.map((f) => `
 
 // src/commands/add.ts
 function registerAddCommand(program2) {
-  program2.command("add").description(`Add a new feature to an existing project.
+  program2.command("add [featureName]").description(`Add a new feature to an existing project.
 
-Available features:${FEATURE_HELP}`).action(async () => {
+Available features:${FEATURE_HELP}`).action(async (featureName) => {
     console.log(chalk2.blue.bold("\n\u{1F527} Adding a new feature to your microservice...\n"));
     try {
-      const { FEATURES } = await import("./features-2V4COZ32.js");
+      const { FEATURES } = await import("./features-CORS6ZGM.js");
       const featureList = FEATURES.filter((f) => f.name !== "Base" && f.name !== "Microservices Base").map((f) => f.name);
-      const { addFeature } = await import("./engine-BBR6EQXY.js");
-      const { feature, dlqAndRetries } = await runAddPrompts(featureList);
+      const { addFeature } = await import("./engine-SS3JXX5S.js");
+      let feature = featureName;
+      let dlqAndRetries = true;
+      if (!feature || !featureList.includes(feature)) {
+        if (feature && !featureList.includes(feature)) {
+          console.log(chalk2.yellow(`Warning: Feature "${feature}" is not recognized. Please select from the list.`));
+        }
+        const promptResult = await runAddPrompts(featureList);
+        feature = promptResult.feature;
+        dlqAndRetries = promptResult.dlqAndRetries;
+      } else if (["Kafka", "RabbitMQ", "BullMQ"].includes(feature)) {
+        const { confirm } = await import("@inquirer/prompts");
+        dlqAndRetries = await confirm({
+          message: `Configure Dead Letter Queue (DLQ) and Retries for ${feature}?`,
+          default: true
+        });
+      }
       const answers = {
         projectName: "",
         packageManager: "npm",

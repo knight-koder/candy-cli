@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { Command } from 'commander';
 import { registerInitCommand } from './commands/init.js';
 import { registerAddCommand } from './commands/add.js';

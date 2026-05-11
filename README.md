@@ -1,4 +1,4 @@
-# 🍬 Candy CLI
+# 🍬 Candy Nest CLI
 
 > Production-grade, interactive CLI to scaffold and extend scalable NestJS microservices — batteries included.
 
@@ -6,27 +6,11 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
-## Why Candy CLI?
+## Why Candy Nest CLI?
 
-Setting up a production-ready NestJS microservice from scratch takes hours. Candy CLI does it in under 120 seconds — wiring up your chosen protocols, message queues, caching layer, logging, observability, and Docker Compose configuration automatically through AST manipulation.
+Setting up a production-ready NestJS microservice from scratch takes hours. Candy Nest CLI does it in under 120 seconds — wiring up your chosen protocols, message queues, caching layer, logging, observability, and Docker Compose configuration automatically through AST manipulation.
 
 No boilerplate copy-pasting. No manual `app.module.ts` wiring. No forgotten Dockerfile.
-
----
-
-## Installation
-
-### From GitHub (Private)
-
-```bash
-npm install -g git+https://github.com/YourUsername/candy-nest-cli.git
-```
-
-### From NPM (Public — once released)
-
-```bash
-npm install -g candy-nest-cli
-```
 
 ---
 
