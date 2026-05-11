@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-05-12
 
 ### Added
-- `candy-cli init` — interactive scaffolding for production-grade NestJS microservices
-- `candy-cli add` — add individual features to an existing project at any time
+- `candy-nest-cli init` — interactive scaffolding for production-grade NestJS microservices
+- `candy-nest-cli add` — add individual features to an existing project at any time
 - Support for REST, GraphQL, gRPC, WebSockets communication protocols
 - Kafka, RabbitMQ, and BullMQ messaging queues with DLQ support
 - Redis caching via `@nestjs/cache-manager`

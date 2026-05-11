@@ -19,25 +19,25 @@ No boilerplate copy-pasting. No manual `app.module.ts` wiring. No forgotten Dock
 ### From GitHub (Private)
 
 ```bash
-npm install -g git+https://github.com/YourUsername/candy-cli.git
+npm install -g git+https://github.com/YourUsername/candy-nest-cli.git
 ```
 
 ### From NPM (Public — once released)
 
 ```bash
-npm install -g candy-cli
+npm install -g candy-nest-cli
 ```
 
 ---
 
 ## Commands
 
-### `candy-cli init [project-name]`
+### `candy-nest-cli init [project-name]`
 
 Interactively scaffold a brand-new NestJS microservice.
 
 ```bash
-candy-cli init my-payment-service
+candy-nest-cli init my-payment-service
 ```
 
 **What it does:**
@@ -50,13 +50,13 @@ candy-cli init my-payment-service
 
 ---
 
-### `candy-cli add`
+### `candy-nest-cli add`
 
 Add a new feature to an **existing** NestJS project interactively.
 
 ```bash
 cd my-existing-service
-candy-cli add
+candy-nest-cli add
 ```
 
 This command will:

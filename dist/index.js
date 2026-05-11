@@ -91,7 +91,7 @@ Available features:${FEATURE_HELP}`).action(async () => {
 
 // src/index.ts
 var program = new Command();
-program.name("candy-cli").description("A professional CLI to scaffold and extend scalable NestJS microservices").version("1.0.0");
+program.name("candy-nest-cli").description("A professional CLI to scaffold and extend scalable NestJS microservices").version("1.0.0");
 registerInitCommand(program);
 registerAddCommand(program);
 program.parse();

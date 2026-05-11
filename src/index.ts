@@ -6,7 +6,7 @@ import { registerAddCommand } from './commands/add.js';
 const program = new Command();
 
 program
-  .name('candy-cli')
+  .name('candy-nest-cli')
   .description('A professional CLI to scaffold and extend scalable NestJS microservices')
   .version('1.0.0');
 
