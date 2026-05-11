@@ -9,8 +9,6 @@ pnpm-debug.log*
 src/**/*.js
 src/**/*.d.ts
 
-# Build output
-dist/
 
 # Environment variables
 .env
