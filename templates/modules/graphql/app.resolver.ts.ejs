@@ -1,0 +1,86 @@
+import { ObjectType, Field, InputType, Query, Mutation, Args, Resolver, ID } from '@nestjs/graphql';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+/**
+* Sample response type. Replace with your domain entity.
+* NestJS code-first approach auto-generates schema.gql from these decorators.
+*/
+@ObjectType()
+export class Item {
+@Field(() => ID)
+id: string;
+
+@Field()
+name: string;
+
+@Field({ nullable: true })
+description?: string;
+
+@Field()
+createdAt: string;
+}
+
+/** Used for the health check query. */
+@ObjectType()
+export class HealthResponse {
+@Field()
+status: string;
+
+@Field()
+timestamp: string;
+}
+
+// ─── Input Types ─────────────────────────────────────────────────────────────
+
+/** Input for creating a new item. Replace fields with your domain. */
+@InputType()
+export class CreateItemInput {
+@Field()
+name: string;
+
+@Field({ nullable: true })
+description?: string;
+}
+
+// ─── Resolver ────────────────────────────────────────────────────────────────
+
+@Resolver(() => Item)
+export class AppResolver {
+// In-memory store for demo purposes. Replace with a real service/repository.
+private readonly items: Item[] = [];
+
+/**
+* Health check query — useful for monitoring.
+* Try it: query { health { status timestamp } }
+*/
+@Query(() => HealthResponse, { description: 'Returns service health status' })
+health(): HealthResponse {
+return { status: 'ok', timestamp: new Date().toISOString() };
+}
+
+/**
+* List all items.
+* Try it: query { items { id name description createdAt } }
+*/
+@Query(() => [Item], { description: 'Returns all items' })
+getItems(): Item[] {
+return this.items;
+}
+
+/**
+* Create a new item.
+* Try it: mutation { createItem(input: { name: "Test" }) { id name createdAt } }
+*/
+@Mutation(() => Item, { description: 'Creates a new item' })
+createItem(@Args('input') input: CreateItemInput): Item {
+const item: Item = {
+id: Math.random().toString(36).slice(2),
+name: input.name,
+description: input.description,
+createdAt: new Date().toISOString(),
+};
+this.items.push(item);
+return item;
+}
+}

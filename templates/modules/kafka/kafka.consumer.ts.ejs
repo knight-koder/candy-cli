@@ -1,0 +1,23 @@
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload, EventPattern } from '@nestjs/microservices';
+
+@Controller()
+export class KafkaConsumerController {
+  /**
+   * Listen to a specific Kafka topic/pattern.
+   * Rename 'my-topic' to your actual topic name.
+   */
+  @MessagePattern('my-topic')
+  async handleMessage(@Payload() message: any): Promise<void> {
+    console.log('Received Kafka message:', message);
+    // Add your business logic here
+  }
+
+  /**
+   * Fire-and-forget events (no reply).
+   */
+  @EventPattern('my-event')
+  async handleEvent(@Payload() data: any): Promise<void> {
+    console.log('Received Kafka event:', data);
+  }
+}

@@ -1,0 +1,35 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { RabbitMQConsumerController } from './rabbitmq.consumer';
+
+const mockChannel = {
+  ack: jest.fn(),
+  nack: jest.fn(),
+};
+
+const mockRmqContext = {
+  getChannelRef: jest.fn().mockReturnValue(mockChannel),
+  getMessage: jest.fn().mockReturnValue({}),
+};
+
+describe('RabbitMQConsumerController', () => {
+  let controller: RabbitMQConsumerController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [RabbitMQConsumerController],
+    }).compile();
+
+    controller = module.get<RabbitMQConsumerController>(RabbitMQConsumerController);
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('handleMessage should ack the message on success', async () => {
+    await controller.handleMessage({ data: 'test' }, mockRmqContext as any);
+    expect(mockChannel.ack).toHaveBeenCalled();
+    expect(mockChannel.nack).not.toHaveBeenCalled();
+  });
+});

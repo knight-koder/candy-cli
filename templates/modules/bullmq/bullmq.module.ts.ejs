@@ -1,0 +1,38 @@
+import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+<% if (dlqAndRetries) { %>import { ScheduleModule } from '@nestjs/schedule';<% } %>
+import { BullMQProcessor } from './bullmq.processor';
+import { BullMQProducerService } from './bullmq.producer.service';
+<% if (dlqAndRetries) { %>import { BullMQDlqCron } from './bullmq.dlq.cron';<% } %>
+
+@Module({
+  imports: [
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        password: process.env.REDIS_PASSWORD,
+      },
+    }),
+    BullModule.registerQueue({
+      name: '<%= projectName %>-queue',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    }),
+    <% if (dlqAndRetries) { %>ScheduleModule.forRoot(),<% } %>
+  ],
+  providers: [
+    BullMQProcessor, 
+    BullMQProducerService,
+    <% if (dlqAndRetries) { %>BullMQDlqCron,<% } %>
+  ],
+  exports: [BullModule, BullMQProducerService],
+})
+export class BullMQModule {}

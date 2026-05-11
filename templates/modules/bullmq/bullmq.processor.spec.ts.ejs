@@ -1,0 +1,28 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { BullMQProcessor } from './bullmq.processor';
+
+describe('BullMQProcessor', () => {
+  let processor: BullMQProcessor;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [BullMQProcessor],
+    }).compile();
+
+    processor = module.get<BullMQProcessor>(BullMQProcessor);
+  });
+
+  it('should be defined', () => {
+    expect(processor).toBeDefined();
+  });
+
+  it('process should handle a job without throwing', async () => {
+    const mockJob = {
+      id: 'test-job-1',
+      name: 'test',
+      data: { userId: 1 },
+    } as any;
+
+    await expect(processor.process(mockJob)).resolves.not.toThrow();
+  });
+});

@@ -1,0 +1,46 @@
+import { Injectable, Inject } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom, Observable } from 'rxjs';
+
+/**
+ * RabbitMQPublisherService — use this to publish messages to RabbitMQ queues.
+ *
+ * Inject it into any controller or service:
+ *
+ *   constructor(private readonly publisher: RabbitMQPublisherService) {}
+ *
+ *   // Fire-and-forget event
+ *   this.publisher.emit('<%= projectName %>-queue', { orderId: '123' });
+ *
+ *   // Request/reply
+ *   const result = await this.publisher.send('order.process', { orderId: '123' });
+ */
+@Injectable()
+export class RabbitMQPublisherService {
+  constructor(
+    @Inject('RABBITMQ_SERVICE') private readonly client: ClientProxy,
+  ) {}
+
+  /**
+   * Fire-and-forget: publishes an event to a RabbitMQ queue/exchange.
+   * The consumer uses @EventPattern to handle these.
+   *
+   * @param pattern  The routing key / queue name
+   * @param data  The message payload
+   */
+  emit<T>(pattern: string, data: T): Observable<any> {
+    return this.client.emit<any, T>(pattern, data);
+  }
+
+  /**
+   * Request/reply: sends a message and waits for a response.
+   * The consumer must use @MessagePattern and return a value.
+   *
+   * @param pattern  The routing key / queue name
+   * @param data  The message payload
+   * @returns  A promise resolving to the consumer's response
+   */
+  async send<TPayload, TResponse>(pattern: string, data: TPayload): Promise<TResponse> {
+    return firstValueFrom(this.client.send<TResponse, TPayload>(pattern, data));
+  }
+}

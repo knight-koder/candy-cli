@@ -1,0 +1,55 @@
+import { Injectable } from '@nestjs/common';
+import CircuitBreaker from 'opossum';
+
+export interface CircuitBreakerOptions {
+  timeout?: number;
+  errorThresholdPercentage?: number;
+  resetTimeout?: number;
+}
+
+@Injectable()
+export class CircuitBreakerService {
+  private breakers = new Map<string, CircuitBreaker<any[], any>>();
+
+  /**
+   * Creates or returns an existing circuit breaker for a named action.
+   * @param name Unique identifier for the action (e.g. 'payment-service')
+   * @param action The async function to protect
+   * @param options Circuit breaker options
+   */
+  createBreaker<T>(
+    name: string,
+    action: (...args: any[]) => Promise<T>,
+    options: CircuitBreakerOptions = {},
+  ): CircuitBreaker<any[], T> {
+    if (this.breakers.has(name)) {
+      return this.breakers.get(name)!;
+    }
+
+    const breaker = new CircuitBreaker(action, {
+      timeout: options.timeout ?? 3000,
+      errorThresholdPercentage: options.errorThresholdPercentage ?? 50,
+      resetTimeout: options.resetTimeout ?? 10000,
+      volumeThreshold: 5,
+    });
+
+    breaker.fallback(() => {
+      throw new Error(`[CircuitBreaker] ${name} is OPEN. Fallback triggered.`);
+    });
+
+    breaker.on('open', () => console.warn(`[CircuitBreaker] ${name} OPENED`));
+    breaker.on('halfOpen', () => console.warn(`[CircuitBreaker] ${name} HALF-OPEN`));
+    breaker.on('close', () => console.log(`[CircuitBreaker] ${name} CLOSED`));
+
+    this.breakers.set(name, breaker);
+    return breaker;
+  }
+
+  /**
+   * Fire an action through a named circuit breaker.
+   */
+  async fire<T>(name: string, action: (...args: any[]) => Promise<T>, args: any[] = [], options?: CircuitBreakerOptions): Promise<T> {
+    const breaker = this.createBreaker(name, action, options);
+    return breaker.fire(...args) as Promise<T>;
+  }
+}

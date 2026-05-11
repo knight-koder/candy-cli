@@ -1,0 +1,71 @@
+import { Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue, Job, JobsOptions } from 'bullmq';
+
+/**
+ * BullMQProducerService — use this to enqueue jobs for the BullMQProcessor.
+ *
+ * Inject it into any controller or service:
+ *
+ *   constructor(private readonly producer: BullMQProducerService) {}
+ *
+ *   // Add a single job
+ *   await this.producer.addJob('send-email', { to: 'user@example.com' });
+ *
+ *   // Add with options (delay, priority, etc.)
+ *   await this.producer.addJob('send-report', data, { delay: 5000, priority: 1 });
+ *
+ *   // Add many jobs at once
+ *   await this.producer.addBulk([
+ *     { name: 'send-email', data: { to: 'a@example.com' } },
+ *     { name: 'send-email', data: { to: 'b@example.com' } },
+ *   ]);
+ */
+@Injectable()
+export class BullMQProducerService {
+  constructor(
+    @InjectQueue('<%= projectName %>-queue') private readonly queue: Queue,
+  ) {}
+
+  /**
+   * Enqueues a single job.
+   *
+   * @param name  Job type name (matched in the Processor's `@Process()` or `process()`)
+   * @param data  The job payload
+   * @param opts  Optional BullMQ job options (delay, priority, attempts, etc.)
+   */
+  async addJob<T>(name: string, data: T, opts?: JobsOptions): Promise<Job<T>> {
+    return this.queue.add(name, data, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 1000 },
+      ...opts,
+    });
+  }
+
+  /**
+   * Enqueues multiple jobs in a single operation (more efficient than calling addJob in a loop).
+   *
+   * @param jobs  Array of { name, data, opts? } objects
+   */
+  async addBulk<T>(
+    jobs: Array<{ name: string; data: T; opts?: JobsOptions }>,
+  ): Promise<Job<T>[]> {
+    return this.queue.addBulk(
+      jobs.map(j => ({ name: j.name, data: j.data, opts: j.opts })),
+    );
+  }
+
+  /**
+   * Returns current queue metrics (useful for health checks / dashboards).
+   */
+  async getQueueStats() {
+    const [waiting, active, completed, failed, delayed] = await Promise.all([
+      this.queue.getWaitingCount(),
+      this.queue.getActiveCount(),
+      this.queue.getCompletedCount(),
+      this.queue.getFailedCount(),
+      this.queue.getDelayedCount(),
+    ]);
+    return { waiting, active, completed, failed, delayed };
+  }
+}

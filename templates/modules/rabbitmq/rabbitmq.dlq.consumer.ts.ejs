@@ -1,0 +1,48 @@
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload, Ctx, RmqContext } from '@nestjs/microservices';
+
+/**
+ * RabbitMQDLQConsumerController — processes messages from the Dead Letter Queue.
+ *
+ * Messages land here after they have been nack'd from the main queue and
+ * the configured x-message-ttl has expired. Use this to:
+ *   - Log/alert on permanently failed messages
+ *   - Store them in a database for manual retry
+ *   - Trigger notifications
+ */
+@Controller()
+export class RabbitMQDLQConsumerController {
+  /**
+   * Handles messages routed to the Dead Letter Queue.
+   * The pattern '<%= projectName %>-dlq' matches the x-dead-letter-routing-key
+   * configured in rabbitmq.module.ts.
+   */
+  @MessagePattern('<%= projectName %>-dlq')
+  async handleDLQMessage(
+    @Payload() message: unknown,
+    @Ctx() context: RmqContext,
+  ): Promise<void> {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      console.error('[DLQ] Processing failed message:', JSON.stringify(message, null, 2));
+
+      // TODO: Implement your dead-letter handling strategy:
+      // Option 1 — Store for manual inspection:
+      //   await this.failedMessageRepository.save({ payload: message, failedAt: new Date() });
+      //
+      // Option 2 — Alert via Slack/PagerDuty:
+      //   await this.alertService.notify(`DLQ message received: ${JSON.stringify(message)}`);
+      //
+      // Option 3 — Retry with a different strategy:
+      //   await this.retryService.scheduleRetry(message);
+
+      // Always ack DLQ messages to prevent an infinite loop
+      channel.ack(originalMsg);
+    } catch (error) {
+      console.error('[DLQ] Critical: Failed to process DLQ message', error);
+      channel.ack(originalMsg); // Ack anyway to prevent looping
+    }
+  }
+}

@@ -1,0 +1,22 @@
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
+
+@Processor('<%= projectName %>-queue')
+export class BullMQProcessor extends WorkerHost {
+  async process(job: Job<any>): Promise<void> {
+    console.log(`Processing job [${job.id}] of type [${job.name}]`);
+    // Add your job processing logic here
+    console.log('Job data:', job.data);
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job) {
+    console.log(`Job [${job.id}] completed.`);
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job, error: Error) {
+    console.error(`Job [${job.id}] failed: ${error.message}`);
+    // After all attempts are exhausted, job lands in failed set (DLQ equivalent)
+  }
+}

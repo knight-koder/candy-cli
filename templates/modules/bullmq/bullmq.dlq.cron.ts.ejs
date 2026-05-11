@@ -1,0 +1,60 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+
+/**
+ * BullMQ DLQ Cron Job
+ * 
+ * BullMQ doesn't have a native Dead Letter Queue. Instead, failed jobs
+ * stay in the "failed" set. This cron job periodically checks for failed
+ * jobs and implements a strategy for them.
+ */
+@Injectable()
+export class BullMQDlqCron {
+  private readonly logger = new Logger(BullMQDlqCron.name);
+
+  constructor(
+    @InjectQueue('<%= projectName %>-queue') private readonly queue: Queue,
+  ) {}
+
+  /**
+   * Run every 5 minutes to check for failed jobs.
+   * Modify the CronExpression to suit your needs.
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async handleFailedJobs() {
+    this.logger.log('Checking for failed jobs in BullMQ...');
+
+    // Get jobs that have failed
+    const failedJobs = await this.queue.getFailed();
+
+    if (failedJobs.length === 0) {
+      this.logger.log('No failed jobs found.');
+      return;
+    }
+
+    this.logger.warn(`Found ${failedJobs.length} failed jobs. Processing...`);
+
+    for (const job of failedJobs) {
+      try {
+        if (!job) continue;
+        
+        // TODO: Implement your DLQ strategy here. 
+        // Option 1: Retry the job
+        // this.logger.log(`Retrying job ${job.id}`);
+        // await job.retry();
+        
+        // Option 2: Remove the job and alert
+        // this.logger.error(`Job ${job.id} failed permanently. Reason: ${job.failedReason}`);
+        // await job.remove();
+        
+        // Example: Let's just log it for now
+        this.logger.error(`Job [${job.id}] (${job.name}) failed: ${job.failedReason}`);
+        
+      } catch (error: any) {
+        this.logger.error(`Failed to process dead letter job ${job?.id}: ${error.message}`);
+      }
+    }
+  }
+}

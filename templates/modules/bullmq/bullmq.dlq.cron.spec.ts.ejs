@@ -1,0 +1,40 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { BullMQDlqCron } from './bullmq.dlq.cron';
+import { getQueueToken } from '@nestjs/bullmq';
+
+const mockQueue = {
+  getFailed: jest.fn(),
+};
+
+describe('BullMQDlqCron', () => {
+  let cron: BullMQDlqCron;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BullMQDlqCron,
+        { provide: getQueueToken('<%= projectName %>-queue'), useValue: mockQueue },
+      ],
+    }).compile();
+
+    cron = module.get<BullMQDlqCron>(BullMQDlqCron);
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(cron).toBeDefined();
+  });
+
+  it('handleFailedJobs should do nothing if no failed jobs', async () => {
+    mockQueue.getFailed.mockResolvedValue([]);
+    await cron.handleFailedJobs();
+    expect(mockQueue.getFailed).toHaveBeenCalled();
+  });
+
+  it('handleFailedJobs should process failed jobs', async () => {
+    const mockJob = { id: '1', name: 'test', failedReason: 'error' };
+    mockQueue.getFailed.mockResolvedValue([mockJob]);
+    await cron.handleFailedJobs();
+    expect(mockQueue.getFailed).toHaveBeenCalled();
+  });
+});

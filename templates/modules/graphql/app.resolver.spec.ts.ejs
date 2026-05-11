@@ -1,0 +1,49 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppResolver } from './app.resolver';
+
+describe('AppResolver', () => {
+  let resolver: AppResolver;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [AppResolver],
+    }).compile();
+
+    resolver = module.get<AppResolver>(AppResolver);
+  });
+
+  it('should be defined', () => {
+    expect(resolver).toBeDefined();
+  });
+
+  describe('health', () => {
+    it('should return status ok and a timestamp', () => {
+      const result = resolver.health();
+      expect(result.status).toBe('ok');
+      expect(result.timestamp).toBeDefined();
+      expect(new Date(result.timestamp).getTime()).not.toBeNaN();
+    });
+  });
+
+  describe('items', () => {
+    it('should return an empty array initially', () => {
+      expect(resolver.getItems()).toEqual([]);
+    });
+  });
+
+  describe('createItem', () => {
+    it('should create an item and return it with an id and timestamp', () => {
+      const input = { name: 'Test Item', description: 'A test description' };
+      const result = resolver.createItem(input);
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe('Test Item');
+      expect(result.description).toBe('A test description');
+      expect(result.createdAt).toBeDefined();
+    });
+
+    it('should add the created item to the items list', () => {
+      resolver.createItem({ name: 'Item 1' });
+      expect(resolver.getItems()).toHaveLength(1);
+    });
+  });
+});

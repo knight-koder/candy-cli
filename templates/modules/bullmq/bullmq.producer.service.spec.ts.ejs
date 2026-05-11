@@ -1,0 +1,52 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { BullMQProducerService } from './bullmq.producer.service';
+import { getQueueToken } from '@nestjs/bullmq';
+
+const mockQueue = {
+  add: jest.fn().mockResolvedValue({ id: 'job-1' }),
+  addBulk: jest.fn().mockResolvedValue([{ id: 'job-1' }, { id: 'job-2' }]),
+  getWaitingCount: jest.fn().mockResolvedValue(5),
+  getActiveCount: jest.fn().mockResolvedValue(2),
+  getCompletedCount: jest.fn().mockResolvedValue(100),
+  getFailedCount: jest.fn().mockResolvedValue(1),
+  getDelayedCount: jest.fn().mockResolvedValue(0),
+};
+
+describe('BullMQProducerService', () => {
+  let service: BullMQProducerService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BullMQProducerService,
+        { provide: getQueueToken('<%= projectName %>-queue'), useValue: mockQueue },
+      ],
+    }).compile();
+
+    service = module.get<BullMQProducerService>(BullMQProducerService);
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  it('addJob should enqueue a job and return it', async () => {
+    const job = await service.addJob('send-email', { to: 'test@example.com' });
+    expect(mockQueue.add).toHaveBeenCalledWith('send-email', { to: 'test@example.com' }, expect.any(Object));
+    expect(job).toEqual({ id: 'job-1' });
+  });
+
+  it('addBulk should enqueue multiple jobs', async () => {
+    const jobs = await service.addBulk([
+      { name: 'send-email', data: { to: 'a@example.com' } },
+      { name: 'send-email', data: { to: 'b@example.com' } },
+    ]);
+    expect(jobs).toHaveLength(2);
+  });
+
+  it('getQueueStats should return all queue metrics', async () => {
+    const stats = await service.getQueueStats();
+    expect(stats).toMatchObject({ waiting: 5, active: 2, completed: 100, failed: 1, delayed: 0 });
+  });
+});

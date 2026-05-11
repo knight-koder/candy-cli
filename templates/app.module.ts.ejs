@@ -1,0 +1,57 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+<% if (protocols.includes('REST')) { %>import { AppController } from './app.controller';
+import { AppService } from './app.service';
+<% } %>
+<% if (protocols.includes('GraphQL')) { %>import { GraphqlModule } from './graphql/graphql.module';
+<% } %>
+<% if (protocols.includes('gRPC')) { %>import { GrpcClientModule } from './grpc/grpc.module';
+<% } %>
+<% if (protocols.includes('WebSockets')) { %>import { WebSocketsModule } from './websockets/websockets.module';
+<% } %>
+<% if (messagingQueue && queueType === 'Kafka') { %>import { KafkaModule } from './kafka/kafka.module';
+import { KafkaConsumerController } from './kafka/kafka.consumer';
+<% } %>
+<% if (messagingQueue && queueType === 'RabbitMQ') { %>import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
+import { RabbitMQConsumerController } from './rabbitmq/rabbitmq.consumer';
+<% } %>
+<% if (messagingQueue && queueType === 'BullMQ') { %>import { BullMQModule } from './bullmq/bullmq.module';
+<% } %>
+<% if (redisCache) { %>import { RedisModule } from './redis/redis.module';
+<% } %>
+<% if (logger === 'Winston') { %>import { LoggerModule } from './logger/logger.module';
+<% } else if (logger === 'Pino') { %>import { LoggerModule } from './logger/logger.module';
+<% } %>
+<% if (observability === 'Prometheus') { %>import { MetricsModule } from './observability/prometheus.module';
+<% } %>
+<% if (opossum) { %>import { ResiliencyModule } from './resiliency/resiliency.module';
+<% } %>
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+<% if (protocols.includes('GraphQL')) { %>    GraphqlModule,
+<% } %>
+<% if (protocols.includes('gRPC')) { %>    GrpcClientModule,
+<% } %>
+<% if (protocols.includes('WebSockets')) { %>    WebSocketsModule,
+<% } %>
+<% if (messagingQueue && queueType === 'Kafka') { %>    KafkaModule,
+<% } %>
+<% if (messagingQueue && queueType === 'RabbitMQ') { %>    RabbitMQModule,
+<% } %>
+<% if (messagingQueue && queueType === 'BullMQ') { %>    BullMQModule,
+<% } %>
+<% if (redisCache) { %>    RedisModule,
+<% } %>
+<% if (logger === 'Winston' || logger === 'Pino') { %>    LoggerModule,
+<% } %>
+<% if (observability === 'Prometheus') { %>    MetricsModule,
+<% } %>
+<% if (opossum) { %>    ResiliencyModule,
+<% } %>
+  ],
+  controllers: [<% if (protocols.includes('REST')) { %>AppController<% } %><% if (messagingQueue && queueType === 'Kafka') { %>, KafkaConsumerController<% } %><% if (messagingQueue && queueType === 'RabbitMQ') { %>, RabbitMQConsumerController<% } %>],
+  providers: [<% if (protocols.includes('REST')) { %>AppService<% } %>],
+})
+export class AppModule {}

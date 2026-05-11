@@ -1,0 +1,29 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { GrpcHeroController } from './grpc.controller';
+
+describe('GrpcHeroController', () => {
+  let controller: GrpcHeroController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [GrpcHeroController],
+    }).compile();
+
+    controller = module.get<GrpcHeroController>(GrpcHeroController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('findOne', () => {
+    it('should return a hero by id', () => {
+      const hero = controller.findOne({ id: 1 });
+      expect(hero).toEqual({ id: 1, name: 'John' });
+    });
+
+    it('should throw when hero is not found', () => {
+      expect(() => controller.findOne({ id: 999 })).toThrow('Hero with id 999 not found');
+    });
+  });
+});

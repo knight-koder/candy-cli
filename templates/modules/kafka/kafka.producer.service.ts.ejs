@@ -1,0 +1,56 @@
+import { Injectable, Inject, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ClientKafka } from '@nestjs/microservices';
+import { firstValueFrom, Observable } from 'rxjs';
+
+/**
+ * KafkaProducerService — use this to emit events and send request/reply messages.
+ *
+ * Inject it into any controller or service that needs to produce Kafka messages:
+ *
+ *   constructor(private readonly kafka: KafkaProducerService) {}
+ *
+ *   // Fire-and-forget event
+ *   await this.kafka.emit('order.created', { orderId: '123' });
+ *
+ *   // Request/reply (awaits a response from a consumer)
+ *   const result = await this.kafka.send('order.process', { orderId: '123' });
+ */
+@Injectable()
+export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
+  constructor(
+    @Inject('KAFKA_SERVICE') private readonly client: ClientKafka,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Subscribe to reply topics for request/reply patterns before connecting
+    this.client.subscribeToResponseOf('order.process');
+    await this.client.connect();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.client.close();
+  }
+
+  /**
+   * Fire-and-forget: emits an event to a Kafka topic.
+   * The consumer uses @EventPattern to handle these.
+   *
+   * @param topic  The Kafka topic name
+   * @param payload  The message payload (will be JSON-serialized)
+   */
+  emit<T>(topic: string, payload: T): Observable<any> {
+    return this.client.emit(topic, payload);
+  }
+
+  /**
+   * Request/reply: sends a message and waits for a response.
+   * The consumer must use @MessagePattern and return a value.
+   *
+   * @param topic  The Kafka topic name
+   * @param payload  The message payload
+   * @returns  A promise resolving to the consumer's response
+   */
+  async send<TPayload, TResponse>(topic: string, payload: TPayload): Promise<TResponse> {
+    return firstValueFrom(this.client.send<TResponse, TPayload>(topic, payload));
+  }
+}

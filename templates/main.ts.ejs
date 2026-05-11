@@ -1,0 +1,72 @@
+<%
+const isHttp = protocols.includes('REST') || protocols.includes('GraphQL') || protocols.includes('WebSockets');
+const useOtel = observability === 'OpenTelemetry';
+%>
+<% if (useOtel) { %>import './tracing'; // Must be imported first for OpenTelemetry
+<% } %>
+import { NestFactory } from '@nestjs/core';
+<% if (httpAdapter === 'Fastify') { %>import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+<% } %>
+import { AppModule } from './app.module';
+<% if (apiDocs) { %>import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+<% } %>
+<% if (logger === 'Winston') { %>import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+<% } %>
+<% if (!isHttp && messagingQueue) { %>import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+<% } %>
+
+async function bootstrap() {
+<% if (!isHttp && messagingQueue) { %>
+  // Pure microservice (no HTTP server)
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+<% if (queueType === 'Kafka') { %>    transport: Transport.KAFKA,
+    options: {
+      client: {
+        clientId: '<%= projectName %>',
+        brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+      },
+      consumer: { groupId: '<%= projectName %>-consumer' },
+    },<% } else if (queueType === 'RabbitMQ') { %>    transport: Transport.RMQ,
+    options: {
+      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+      queue: '<%= projectName %>-queue',
+      queueOptions: { durable: true },
+    },<% } %>
+  });
+<% } else if (httpAdapter === 'Fastify') { %>
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: <%= logger === 'Pino' %> }));
+<% } else { %>
+  const app = await NestFactory.create(AppModule);
+<% } %>
+
+<% if (isHttp) { %>
+  app.enableCors();
+  app.setGlobalPrefix('api/v1');
+<% } %>
+<% if (logger === 'Winston') { %>
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
+<% } %>
+<% if (apiDocs && protocols.includes('REST')) { %>
+  // Swagger setup
+  const config = new DocumentBuilder()
+    .setTitle('<%= projectName %> API')
+    .setDescription('<%= projectName %> microservice API documentation')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+<% } %>
+
+  const port = process.env.PORT || 3000;
+<% if (!isHttp && messagingQueue) { %>
+  await app.listen();
+  console.log(`<%= projectName %> microservice is running`);
+<% } else { %>
+  await app.listen(<% if (httpAdapter === 'Fastify') { %>port, '0.0.0.0'<% } else { %>port<% } %>);
+  console.log(`<%= projectName %> service running on port ${port}`);
+<% if (apiDocs) { %>  console.log(`Swagger docs available at http://localhost:${port}/api/docs`);<% } %>
+<% } %>
+}
+
+bootstrap();

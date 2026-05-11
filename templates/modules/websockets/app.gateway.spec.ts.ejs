@@ -1,0 +1,25 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppGateway } from './app.gateway';
+
+describe('AppGateway', () => {
+  let gateway: AppGateway;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [AppGateway],
+    }).compile();
+
+    gateway = module.get<AppGateway>(AppGateway);
+  });
+
+  it('should be defined', () => {
+    expect(gateway).toBeDefined();
+  });
+
+  it('handleMessage should return an object with the received event', () => {
+    const mockSocket = { id: 'test-id' } as any;
+    const payload = { text: 'hello' };
+    const result = gateway.handleMessage(mockSocket, payload);
+    expect(result).toMatchObject({ event: 'msgToClient', data: payload });
+  });
+});

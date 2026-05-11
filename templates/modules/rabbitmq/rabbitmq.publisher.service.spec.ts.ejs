@@ -1,0 +1,38 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { RabbitMQPublisherService } from './rabbitmq.publisher.service';
+import { of } from 'rxjs';
+
+const mockClientProxy = {
+  emit: jest.fn().mockReturnValue(of({})),
+  send: jest.fn().mockReturnValue(of({ result: 'ok' })),
+};
+
+describe('RabbitMQPublisherService', () => {
+  let service: RabbitMQPublisherService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RabbitMQPublisherService,
+        { provide: 'RABBITMQ_SERVICE', useValue: mockClientProxy },
+      ],
+    }).compile();
+
+    service = module.get<RabbitMQPublisherService>(RabbitMQPublisherService);
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  it('emit should call client.emit with correct pattern and data', () => {
+    service.emit('order.created', { orderId: '123' });
+    expect(mockClientProxy.emit).toHaveBeenCalledWith('order.created', { orderId: '123' });
+  });
+
+  it('send should resolve with the client response', async () => {
+    const result = await service.send('order.process', { orderId: '123' });
+    expect(result).toEqual({ result: 'ok' });
+  });
+});

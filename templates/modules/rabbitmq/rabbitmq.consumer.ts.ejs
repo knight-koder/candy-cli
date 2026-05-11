@@ -1,0 +1,22 @@
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload, Ctx, RmqContext } from '@nestjs/microservices';
+
+@Controller()
+export class RabbitMQConsumerController {
+  @MessagePattern('<%= projectName %>-queue')
+  async handleMessage(
+    @Payload() message: any,
+    @Ctx() context: RmqContext,
+  ): Promise<void> {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+    try {
+      console.log('Received RabbitMQ message:', message);
+      // Add your business logic here
+      channel.ack(originalMsg);
+    } catch (error) {
+      // nack will route to DLX/DLQ after retries are exhausted
+      channel.nack(originalMsg, false, false);
+    }
+  }
+}

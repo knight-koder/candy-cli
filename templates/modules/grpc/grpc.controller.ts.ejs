@@ -1,0 +1,66 @@
+import { Controller } from '@nestjs/common';
+import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
+import { Observable, Subject } from 'rxjs';
+
+// ─── Interfaces matching hero.proto ──────────────────────────────────────────
+// These mirror the proto message definitions. In production, generate these
+// from the proto file using `ts-proto` for full type safety.
+
+interface HeroById {
+  id: number;
+}
+
+interface Hero {
+  id: number;
+  name: string;
+}
+
+// ─── Controller ──────────────────────────────────────────────────────────────
+
+/**
+ * GrpcHeroController — implements the HeroService defined in hero.proto.
+ *
+ * @GrpcMethod maps the method to a unary RPC call.
+ * @GrpcStreamMethod maps to a streaming RPC call.
+ *
+ * To add a new RPC method:
+ *   1. Add the method to hero.proto
+ *   2. Add a matching @GrpcMethod handler here
+ */
+@Controller()
+export class GrpcHeroController {
+  // In-memory store for demo. Replace with a real service/repository.
+  private readonly heroes: Hero[] = [
+    { id: 1, name: 'John' },
+    { id: 2, name: 'Doe' },
+  ];
+
+  /**
+   * Unary RPC: FindOne — called by a gRPC client sending a HeroById message.
+   *
+   * Client call example (Node.js):
+   *   client.FindOne({ id: 1 }, (err, hero) => console.log(hero));
+   */
+  @GrpcMethod('HeroService', 'FindOne')
+  findOne(data: HeroById): Hero {
+    const hero = this.heroes.find(h => h.id === data.id);
+    if (!hero) {
+      throw new Error(`Hero with id ${data.id} not found`);
+    }
+    return hero;
+  }
+
+  /**
+   * Server-streaming RPC: FindAll — streams all heroes to the client.
+   * Uncomment and add to hero.proto: rpc FindAll (Empty) returns (stream Hero);
+   */
+  // @GrpcStreamMethod('HeroService', 'FindAll')
+  // findAll(): Observable<Hero> {
+  //   const subject = new Subject<Hero>();
+  //   for (const hero of this.heroes) {
+  //     subject.next(hero);
+  //   }
+  //   subject.complete();
+  //   return subject.asObservable();
+  // }
+}
