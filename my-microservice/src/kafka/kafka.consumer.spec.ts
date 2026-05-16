@@ -1,0 +1,26 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { KafkaConsumerController } from './kafka.consumer';
+
+describe('KafkaConsumerController', () => {
+  let controller: KafkaConsumerController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [KafkaConsumerController],
+    }).compile();
+
+    controller = module.get<KafkaConsumerController>(KafkaConsumerController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('handleMessage should process a Kafka message without throwing', async () => {
+    await expect(controller.handleMessage({ key: 'value' })).resolves.not.toThrow();
+  });
+
+  it('handleEvent should process a Kafka event without throwing', async () => {
+    await expect(controller.handleEvent({ event: 'test' })).resolves.not.toThrow();
+  });
+});

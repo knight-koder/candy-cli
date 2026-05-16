@@ -1,0 +1,74 @@
+import { Injectable, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConfigService } from '@nestjs/config';
+import type { Cache } from 'cache-manager';
+
+/**
+ * RedisService — a typed wrapper around the NestJS CacheManager.
+ *
+ * The CacheModule is configured as global (isGlobal: true) so you can inject
+ * CACHE_MANAGER anywhere, but this service provides a cleaner, typed API.
+ *
+ * Usage:
+ *   constructor(private readonly redis: RedisService) {}
+ *
+ *   await this.redis.set('user:123', { name: 'Alice' }, 300); // TTL 5 minutes
+ *   const user = await this.redis.get<User>('user:123');
+ *   await this.redis.del('user:123');
+ */
+@Injectable()
+export class RedisService {
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly configService: ConfigService,
+  ) {}
+
+  /**
+   * Retrieve a cached value by key.
+   * Returns null if the key does not exist or has expired.
+   */
+  async get<T>(key: string): Promise<T | null> {
+    return (await this.cache.get<T>(key)) ?? null;
+  }
+
+  /**
+   * Store a value in the cache.
+   *
+   * @param key    The cache key
+   * @param value  The value to store (will be JSON-serialized)
+   * @param ttl    Time-to-live in seconds (defaults to REDIS_TTL env var or 60s)
+   */
+  async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+    const resolvedTtl = ttl ?? this.configService.get<number>('REDIS_TTL') ?? 60;
+    await this.cache.set(key, value, resolvedTtl);
+  }
+
+  /**
+   * Delete a cached value by key.
+   */
+  async del(key: string): Promise<void> {
+    await this.cache.del(key);
+  }
+
+  /**
+   * Check if a key exists in the cache.
+   */
+  async exists(key: string): Promise<boolean> {
+    return (await this.cache.get(key)) !== undefined;
+  }
+
+  /**
+   * Store a value only if the key does NOT already exist (set-if-not-exists).
+   * 
+   * WARNING: This implementation is NOT atomic due to cache-manager abstraction.
+   * In extremely high-concurrency environments, race conditions may occur.
+   *
+   * @returns true if the value was set, false if the key already existed
+   */
+  async setNX<T>(key: string, value: T, ttl?: number): Promise<boolean> {
+    const existing = await this.cache.get(key);
+    if (existing !== undefined && existing !== null) return false;
+    await this.set(key, value, ttl);
+    return true;
+  }
+}
