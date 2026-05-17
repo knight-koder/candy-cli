@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 import {
-  runAddPrompts,
-  runPrompts
-} from "./chunk-M5LOJY2U.js";
+  runAddPrompts
+} from "./chunk-5C54PEVZ.js";
+import {
+  CLI_FEATURE_LIST,
+  FEATURE_NAMES,
+  ORMS,
+  isDatabaseFeature,
+  isMessagingFeature,
+  isProtocolFeature,
+  mapFeatureToLogger,
+  mapFeatureToObservability
+} from "./chunk-VJ3SJRPV.js";
 
 // src/index.ts
 import { Command } from "commander";
@@ -10,13 +19,20 @@ import { Command } from "commander";
 // src/commands/init.ts
 import chalk from "chalk";
 function registerInitCommand(program2) {
-  program2.command("init").description("Initialize a new NestJS microservice interactively").argument("[project-name]", "Name of the project to create").action(async (projectName) => {
+  program2.command("init").description("Initialize a new NestJS microservice interactively").argument("[project-name]", "Name of the project to create").option("-y, --yes", "Skip all prompts and use defaults (Standard Pack)").option("--all", "Enable ALL features and skip prompts (Kitchen Sink)").option("--skip-install", "Skip package installation").action(async (projectName, options) => {
     console.log(chalk.blue.bold("\n\u{1F680} Welcome to Candy CLI!\n"));
     try {
-      const answers = await runPrompts(projectName);
+      const { runPrompts } = await import("./prompts-BUNFHI2Q.js");
+      const answers = await runPrompts(projectName, {
+        skipPrompts: !!options.yes || !!options.all,
+        full: !!options.all
+      });
       console.log(chalk.green("\n\u2713 Configuration complete. Starting generation..."));
-      const { generateProject } = await import("./engine-SS3JXX5S.js");
-      await generateProject(answers);
+      const { generateProject } = await import("./engine-SKV6PL2L.js");
+      await generateProject({
+        ...answers,
+        skipInstall: !!options.skipInstall
+      });
       console.log(chalk.green.bold("\n\u{1F389} Microservice scaffolded successfully!\n"));
     } catch (error) {
       console.error(chalk.red("\n\u274C An error occurred during scaffolding:"));
@@ -28,39 +44,16 @@ function registerInitCommand(program2) {
 
 // src/commands/add.ts
 import chalk2 from "chalk";
-
-// src/constants.ts
-var FEATURE_NAMES = [
-  "REST",
-  "GraphQL",
-  "gRPC",
-  "WebSockets",
-  "Kafka",
-  "RabbitMQ",
-  "BullMQ",
-  "Redis",
-  "Winston Logger",
-  "Pino Logger",
-  "Morgan",
-  "OpenTelemetry",
-  "Prometheus",
-  "Swagger",
-  "Opossum",
-  "Fastify"
-];
-var FEATURE_HELP = FEATURE_NAMES.map((f) => `
-  - ${f}`).join("");
-
-// src/commands/add.ts
 function registerAddCommand(program2) {
   program2.command("add [featureName]").description(`Add a new feature to an existing project.
 
-Available features:${FEATURE_HELP}`).action(async (featureName) => {
+Available features:
+${CLI_FEATURE_LIST.map((f) => `  - ${f}`).join("\n")}`).action(async (featureName) => {
     console.log(chalk2.blue.bold("\n\u{1F527} Adding a new feature to your microservice...\n"));
     try {
-      const { FEATURES } = await import("./features-CORS6ZGM.js");
-      const featureList = FEATURES.filter((f) => f.name !== "Base" && f.name !== "Microservices Base").map((f) => f.name);
-      const { addFeature } = await import("./engine-SS3JXX5S.js");
+      const { FEATURES } = await import("./features-2PJHNMSB.js");
+      const featureList = FEATURES.filter((f) => f.name !== FEATURE_NAMES.BASE && f.name !== FEATURE_NAMES.MICROSERVICES_BASE).map((f) => f.name);
+      const { addFeature } = await import("./engine-SKV6PL2L.js");
       let feature = featureName;
       let dlqAndRetries = true;
       if (!feature || !featureList.includes(feature)) {
@@ -70,25 +63,47 @@ Available features:${FEATURE_HELP}`).action(async (featureName) => {
         const promptResult = await runAddPrompts(featureList);
         feature = promptResult.feature;
         dlqAndRetries = promptResult.dlqAndRetries;
-      } else if (["Kafka", "RabbitMQ", "BullMQ"].includes(feature)) {
+      } else if (isMessagingFeature(feature)) {
         const { confirm } = await import("@inquirer/prompts");
         dlqAndRetries = await confirm({
           message: `Configure Dead Letter Queue (DLQ) and Retries for ${feature}?`,
           default: true
         });
       }
+      let postgresOrm;
+      let mysqlOrm;
+      if (feature === FEATURE_NAMES.POSTGRESQL || feature === FEATURE_NAMES.MYSQL) {
+        const { select } = await import("@inquirer/prompts");
+        const ormChoice = await select({
+          message: `Which ORM for ${feature}? (Use arrow keys)`,
+          choices: [
+            { value: ORMS.TYPEORM, name: "TypeORM (decorator-based, NestJS-native)" },
+            { value: ORMS.PRISMA, name: "Prisma  (schema-first, type-safe client)" }
+          ],
+          default: ORMS.TYPEORM
+        });
+        if (feature === FEATURE_NAMES.POSTGRESQL) postgresOrm = ormChoice;
+        if (feature === FEATURE_NAMES.MYSQL) mysqlOrm = ormChoice;
+      }
+      const isMessaging = isMessagingFeature(feature);
+      const isDatabase = isDatabaseFeature(feature);
+      const isProtocol = isProtocolFeature(feature);
       const answers = {
         projectName: "",
         packageManager: "npm",
-        messagingQueue: ["Kafka", "RabbitMQ", "BullMQ"].includes(feature),
-        queueType: ["Kafka", "RabbitMQ", "BullMQ"].includes(feature) ? feature : void 0,
-        redisCache: feature === "Redis",
-        logger: feature === "Winston Logger" ? "Winston" : feature === "Pino Logger" ? "Pino" : "None",
-        observability: feature === "OpenTelemetry" ? "OpenTelemetry" : feature === "Prometheus" ? "Prometheus" : "None",
-        opossum: feature === "Opossum",
+        messagingQueue: isMessaging,
+        queueType: isMessaging ? feature : void 0,
+        redisCache: feature === FEATURE_NAMES.REDIS,
+        database: isDatabase,
+        databases: isDatabase ? [feature] : [],
+        postgresOrm,
+        mysqlOrm,
+        logger: mapFeatureToLogger(feature),
+        observability: mapFeatureToObservability(feature),
+        opossum: feature === FEATURE_NAMES.OPOSSUM,
         dlqAndRetries,
-        protocols: feature === "GraphQL" ? ["GraphQL"] : feature === "gRPC" ? ["gRPC"] : [],
-        apiDocs: feature === "Swagger"
+        protocols: isProtocol ? [feature] : [],
+        apiDocs: feature === FEATURE_NAMES.SWAGGER
       };
       await addFeature(feature, answers);
       console.log(chalk2.green.bold(`
@@ -104,6 +119,12 @@ Available features:${FEATURE_HELP}`).action(async (featureName) => {
 }
 
 // src/index.ts
+var MIN_NODE_VERSION = 18;
+var currentMajorVersion = parseInt(process.versions.node.split(".")[0]);
+if (currentMajorVersion < MIN_NODE_VERSION) {
+  console.error(`Error: candy-nest-cli requires Node.js version ${MIN_NODE_VERSION} or higher. Current version: ${process.versions.node}`);
+  process.exit(1);
+}
 var program = new Command();
 program.name("candy-nest-cli").description("A professional CLI to scaffold and extend scalable NestJS microservices").version("1.0.0");
 registerInitCommand(program);

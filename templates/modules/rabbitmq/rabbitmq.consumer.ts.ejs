@@ -1,20 +1,23 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload, Ctx, RmqContext } from '@nestjs/microservices';
 
 @Controller()
 export class RabbitMQConsumerController {
+  private readonly logger = new Logger(RabbitMQConsumerController.name);
+
   @MessagePattern('<%= projectName %>-queue')
   async handleMessage(
-    @Payload() message: any,
+    @Payload() message: unknown,
     @Ctx() context: RmqContext,
   ): Promise<void> {
     const channel = context.getChannelRef();
     const originalMsg = context.getMessage();
     try {
-      console.log('Received RabbitMQ message:', message);
+      this.logger.log(`Received RabbitMQ message: ${JSON.stringify(message)}`);
       // Add your business logic here
       channel.ack(originalMsg);
-    } catch (error) {
+    } catch (error: any) {
+      this.logger.error(`Error processing RabbitMQ message: ${error.message}`);
       // nack will route to DLX/DLQ after retries are exhausted
       channel.nack(originalMsg, false, false);
     }

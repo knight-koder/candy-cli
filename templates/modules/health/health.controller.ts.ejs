@@ -1,0 +1,74 @@
+import { Controller, Get } from '@nestjs/common';
+import { 
+  HealthCheckService, 
+  HealthCheck, 
+  DiskHealthIndicator, 
+  MemoryHealthIndicator,
+  <% if (database) { %>
+    <% if (databases.includes('PostgreSQL') || databases.includes('MySQL')) { %>TypeOrmHealthIndicator, <% } %>
+    <% if (databases.includes('MongoDB')) { %>MongooseHealthIndicator, <% } %>
+  <% } %>
+  <% if (messagingQueue || redisCache) { %>MicroserviceHealthIndicator, <% } %>
+} from '@nestjs/terminus';
+<% if (messagingQueue || redisCache) { %>import { Transport } from '@nestjs/microservices';<% } %>
+import { ConfigService } from '@nestjs/config';
+
+@Controller('health')
+export class HealthController {
+  constructor(
+    private health: HealthCheckService,
+    private disk: DiskHealthIndicator,
+    private memory: MemoryHealthIndicator,
+    private configService: ConfigService,
+    <% if (database) { %>
+      <% if (databases.includes('PostgreSQL') || databases.includes('MySQL')) { %>private db: TypeOrmHealthIndicator, <% } %>
+      <% if (databases.includes('MongoDB')) { %>private mongo: MongooseHealthIndicator, <% } %>
+    <% } %>
+    <% if (messagingQueue || redisCache) { %>private microservice: MicroserviceHealthIndicator,<% } %>
+  ) {}
+
+  @Get()
+  @HealthCheck()
+  check() {
+    return this.health.check([
+      // Basic checks
+      () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024), // 150MB
+      () => this.disk.checkStorage('storage', { path: '/', thresholdPercent: 0.9 }), // 90% disk usage
+      
+      // Feature-specific checks
+      <% if (database) { %>
+        <% if (databases.includes('PostgreSQL') || databases.includes('MySQL')) { %>
+      () => this.db.pingCheck('database'),
+        <% } %>
+        <% if (databases.includes('MongoDB')) { %>
+      () => this.mongo.pingCheck('mongodb'),
+        <% } %>
+      <% } %>
+
+      <% if (redisCache || (messagingQueue && queueType === 'BullMQ')) { %>
+      () => this.microservice.pingCheck('redis', {
+        transport: Transport.REDIS,
+        options: {
+          host: this.configService.get<string>('REDIS_HOST') || 'localhost',
+          port: this.configService.get<number>('REDIS_PORT') || 6379,
+        },
+      }),
+      <% } %>
+
+      <% if (messagingQueue && queueType !== 'BullMQ') { %>
+      () => this.microservice.pingCheck('messaging', {
+        transport: Transport.<%= queueType === 'Kafka' ? 'KAFKA' : 'RMQ' %>,
+        options: {
+          <% if (queueType === 'Kafka') { %>
+          client: {
+            brokers: (this.configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+          },
+          <% } else if (queueType === 'RabbitMQ') { %>
+          urls: [this.configService.get<string>('RABBITMQ_URL') || 'amqp://localhost:5672'],
+          <% } %>
+        },
+      }),
+      <% } %>
+    ]);
+  }
+}

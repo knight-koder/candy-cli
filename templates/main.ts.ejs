@@ -1,10 +1,13 @@
 <%
 const isHttp = protocols.includes('REST') || protocols.includes('GraphQL') || protocols.includes('WebSockets');
+const isMicroservice = messagingQueue || protocols.includes('gRPC');
 const useOtel = observability === 'OpenTelemetry';
 %>
 <% if (useOtel) { %>import './tracing'; // Must be imported first for OpenTelemetry
 <% } %>
 import { NestFactory } from '@nestjs/core';
+import { Logger, ValidationPipe, RequestMethod } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 <% if (httpAdapter === 'Fastify') { %>import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 <% } %>
 import { AppModule } from './app.module';
@@ -12,41 +15,53 @@ import { AppModule } from './app.module';
 <% } %>
 <% if (logger === 'Winston') { %>import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 <% } %>
-<% if (!isHttp && messagingQueue) { %>import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+<% if (isMicroservice) { %>import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 <% } %>
+import { join } from 'path';
 
 async function bootstrap() {
-<% if (!isHttp && messagingQueue) { %>
-  // Pure microservice (no HTTP server)
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
-<% if (queueType === 'Kafka') { %>    transport: Transport.KAFKA,
-    options: {
-      client: {
-        clientId: '<%= projectName %>',
-        brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-      },
-      consumer: { groupId: '<%= projectName %>-consumer' },
-    },<% } else if (queueType === 'RabbitMQ') { %>    transport: Transport.RMQ,
-    options: {
-      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-      queue: '<%= projectName %>-queue',
-      queueOptions: { durable: true },
-    },<% } %>
-  });
-<% } else if (httpAdapter === 'Fastify') { %>
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: <%= logger === 'Pino' %> }));
-<% } else { %>
-  const app = await NestFactory.create(AppModule);
-<% } %>
+  const logger = new Logger('Bootstrap');
 
-<% if (isHttp) { %>
-  app.enableCors();
-  app.setGlobalPrefix('api/v1');
-<% } %>
-<% if (logger === 'Winston') { %>
+  <% if (isHttp) { %>
+  // ─── HTTP Application Setup ────────────────────────────────────────────────
+  <% if (httpAdapter === 'Fastify') { %>
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule, 
+    new FastifyAdapter({ logger: <%= logger === 'Pino' %> })
+  );
+  <% } else { %>
+  const app = await NestFactory.create(AppModule);
+  <% } %>
+  
+  const configService = app.get(ConfigService);
+
+  // CORS: restrict to the configured origin in production
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  app.enableCors({
+    origin: corsOrigin || false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
+
+  // Exclude /health from api/v1 prefix so K8s liveness/readiness probes work
+  app.setGlobalPrefix('api/v1', {
+    exclude: [{ path: 'health', method: RequestMethod.GET }],
+  });
+
+  // Global validation pipe — reject unknown fields and validate all DTOs
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }));
+
+  app.enableShutdownHooks();
+
+  <% if (logger === 'Winston') { %>
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
-<% } %>
-<% if (apiDocs && protocols.includes('REST')) { %>
+  <% } %>
+
+  <% if (apiDocs && protocols.includes('REST')) { %>
   // Swagger setup
   const config = new DocumentBuilder()
     .setTitle('<%= projectName %> API')
@@ -56,17 +71,105 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-<% } %>
+  <% } %>
 
-  const port = process.env.PORT || 3000;
-<% if (!isHttp && messagingQueue) { %>
-  await app.listen();
-  console.log(`<%= projectName %> microservice is running`);
-<% } else { %>
+  // ─── Hybrid Microservice Connections ──────────────────────────────────────
+  <% if (isMicroservice) { %>
+  <% if (protocols.includes('gRPC')) { %>
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'hero',
+      protoPath: join(__dirname, '../grpc/hero/hero.proto'),
+      url: configService.get<string>('GRPC_URL') || '0.0.0.0:50051',
+    },
+  });
+  <% } %>
+  <% if (messagingQueue && queueType === 'Kafka') { %>
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.KAFKA,
+    options: {
+      client: {
+        clientId: '<%= projectName %>',
+        brokers: (configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+        retry: {
+          initialRetryTime: 1000,
+          retries: 30,
+        },
+      },
+      consumer: { groupId: '<%= projectName %>-consumer' },
+    },
+  });
+  <% } %>
+  <% if (messagingQueue && queueType === 'RabbitMQ') { %>
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: {
+      urls: [configService.get<string>('RABBITMQ_URL') || 'amqp://localhost:5672'],
+      queue: '<%= projectName %>-queue',
+      queueOptions: { durable: true },
+    },
+  });
+  <% } %>
+
+  await app.startAllMicroservices();
+  logger.log('All connected microservices started');
+  <% } %>
+
+  const port = configService.get<number>('PORT') || 3000;
   await app.listen(<% if (httpAdapter === 'Fastify') { %>port, '0.0.0.0'<% } else { %>port<% } %>);
-  console.log(`<%= projectName %> service running on port ${port}`);
-<% if (apiDocs) { %>  console.log(`Swagger docs available at http://localhost:${port}/api/docs`);<% } %>
-<% } %>
+  
+  logger.log(`<%= projectName %> service running on port ${port}`);
+  <% if (apiDocs) { %>logger.log(`Swagger docs available at http://localhost:${port}/api/docs`);<% } %>
+
+  <% } else { %>
+  // ─── Pure Microservice Setup (No HTTP) ─────────────────────────────────────
+  // Create a base app to get ConfigService first
+  const baseApp = await NestFactory.create(AppModule);
+  const configService = baseApp.get(ConfigService);
+  await baseApp.close();
+
+  <% if (protocols.includes('gRPC')) { %>
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+    transport: Transport.GRPC,
+    options: {
+      package: 'hero',
+      protoPath: join(__dirname, '../grpc/hero/hero.proto'),
+      url: configService.get<string>('GRPC_URL') || '0.0.0.0:50051',
+    },
+  });
+  <% } else if (messagingQueue && queueType === 'Kafka') { %>
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+    transport: Transport.KAFKA,
+    options: {
+      client: {
+        clientId: '<%= projectName %>',
+        brokers: (configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+        retry: {
+          initialRetryTime: 1000,
+          retries: 30,
+        },
+      },
+      consumer: { groupId: '<%= projectName %>-consumer' },
+    },
+  });
+  <% } else if (messagingQueue && queueType === 'RabbitMQ') { %>
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+    transport: Transport.RMQ,
+    options: {
+      urls: [configService.get<string>('RABBITMQ_URL') || 'amqp://localhost:5672'],
+      queue: '<%= projectName %>-queue',
+      queueOptions: { durable: true },
+    },
+  });
+  <% } else { %>
+  // Default to HTTP if nothing else selected (failsafe)
+  const app = await NestFactory.create(AppModule);
+  <% } %>
+
+  await app.listen();
+  logger.log(`<%= projectName %> pure microservice is running`);
+  <% } %>
 }
 
 bootstrap();

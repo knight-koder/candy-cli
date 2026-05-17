@@ -21,7 +21,7 @@ export class AppGateway
   private logger: Logger = new Logger('AppGateway');
 
   @SubscribeMessage('msgToServer')
-  handleMessage(client: Socket, payload: any): any {
+  handleMessage(client: Socket, payload: unknown): unknown {
     const response = { event: 'msgToClient', data: payload };
     this.server?.emit(response.event, response.data);
     return response;
@@ -35,7 +35,7 @@ export class AppGateway
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  handleConnection(client: Socket, ...args: any[]) {
+  handleConnection(client: Socket, ...args: unknown[]) {
     this.logger.log(`Client connected: ${client.id}`);
   }
 }

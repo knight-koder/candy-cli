@@ -1,135 +1,103 @@
 # 🍬 Candy Nest CLI
 
-> Production-grade, interactive CLI to scaffold and extend scalable NestJS microservices — batteries included.
+> **Scaffold Production-Ready NestJS Microservices in Seconds.**  
+> An architect-grade toolkit that generates hardened, secure, and fully-wired services with all the "boring" production parts already done.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
-
-## Why Candy Nest CLI?
-
-Setting up a production-ready NestJS microservice from scratch takes hours. Candy Nest CLI does it in under 120 seconds — wiring up your chosen protocols, message queues, caching layer, logging, observability, and Docker Compose configuration automatically through AST manipulation.
-
-No boilerplate copy-pasting. No manual `app.module.ts` wiring. No forgotten Dockerfile.
+[![NestJS](https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com)
 
 ---
 
-## Commands
+## 🚀 The "Candy" Advantage
 
-### `candy-nest-cli init [project-name]`
+Setting up a production microservice usually takes hours of manual wiring. **Candy Nest CLI** handles the heavy lifting through AST-powered code generation, giving you:
 
-Interactively scaffold a brand-new NestJS microservice.
+- 🛡️ **Hardened Security**: Global Rate Limiting, secure CORS policies, and Payload Validation (DTOs) out of the box.
+- 📡 **Resilient Networking**: Automatic Kafka dual-listener setup and Docker healthcheck-aware service linking.
+- 🧪 **Pro-Grade Testing**: Automated Regression E2E suite that validates your *actual* infrastructure (DBs, Brokers, Caching).
+- 🏗️ **Architect-Grade Linking**: Zero-manual-wiring for Redis, Kafka, BullMQ, and Postgres.
+
+---
+
+## 🛠️ Commands
+
+### 1. Initialize a New Project
+Interactively scaffold a complete microservice.
 
 ```bash
-candy-nest-cli init my-payment-service
+npx candy-nest-cli init [project-name]
 ```
 
-**What it does:**
-1. Runs `@nestjs/cli new` to create a clean base project
-2. Installs all selected packages
-3. Generates feature-specific modules from production-grade templates
-4. Injects each module into `app.module.ts` via AST — no text manipulation
-5. Generates a `docker-compose.yml` pre-configured for your chosen infrastructure
-6. Generates a multi-stage `Dockerfile` for production deployment
+**Features included by default:**
+*   **Infrastructure**: Multi-stage `Dockerfile` and optimized `docker-compose.yml`.
+*   **Observability**: Prometheus metrics and root-level Health Probes.
+*   **Security**: `@nestjs/throttler` (Rate Limiting) and `ValidationPipe` (DTOs).
 
----
-
-### `candy-nest-cli add`
-
-Add a new feature to an **existing** NestJS project interactively.
+### 2. Extend an Existing Project
+Add features to **any** standard NestJS project. The CLI detects your setup and injects the new module into `AppModule` automatically.
 
 ```bash
-cd my-existing-service
-candy-nest-cli add
+cd my-nest-app
+npx candy-nest-cli add
 ```
 
-This command will:
-- Detect your project's package manager (npm / yarn / pnpm) automatically
-- Install required packages
-- Generate the necessary files
-- Inject the new module into `app.module.ts` via AST
-- **Update `docker-compose.yml`** if the feature requires infrastructure (e.g., Redis, Kafka)
+### ⚠️ Technical Considerations for Existing Projects
+If you are adding features to a project **not** scaffolded with `candy-nest-cli init`, please note:
+
+*   **Environment Setup**: Our features rely on `ConfigService`. You must manually copy variables from the generated `.env.example` to your `.env` file.
+*   **Security Pipes**: Ensure `ValidationPipe` is registered in `main.ts` for our hardened DTO-based validation to take effect.
+*   **Global State**: Projects initialized with this CLI have pre-configured Rate Limiting and CORS. You may need to add these manually to standard projects.
 
 ---
 
-## What Gets Generated
+## 📦 Feature Matrix
 
-| Category | Options |
+| Category | Options Provided |
 |---|---|
-| **HTTP Adapter** | Express (default), Fastify |
-| **Protocols** | REST, GraphQL, gRPC, WebSockets |
-| **Message Queue** | Kafka, RabbitMQ, BullMQ |
-| **Caching** | Redis (`@nestjs/cache-manager`) |
-| **Logger** | Winston, Pino, Morgan |
-| **Observability** | OpenTelemetry + Jaeger, Prometheus |
+| **Transport** | REST (Express/Fastify), GraphQL, gRPC, WebSockets |
+| **Databases** | PostgreSQL (TypeORM/Prisma), MySQL (TypeORM/Prisma), MongoDB (Mongoose) |
+| **Messaging** | Kafka (Dual-listener), RabbitMQ (DLX support), BullMQ (Redis-backed) |
+| **Observability**| Prometheus, OpenTelemetry, Jaeger Tracing, Terminus Health |
+| **Resiliency** | Opossum Circuit Breaker, Global Rate Limiting, DLQs |
 | **API Docs** | Swagger (`@nestjs/swagger`) |
-| **Resiliency** | Opossum circuit breaker, DLQ & retries |
-| **Infrastructure** | Auto-generated `docker-compose.yml` |
-| **Deployment** | Multi-stage, non-root `Dockerfile` |
 
 ---
 
-## Generated Project Structure
+## 🧪 Automated Regression Suite
 
-```
-my-payment-service/
-├── src/
-│   ├── main.ts                       # Bootstraps app with chosen HTTP adapter
-│   ├── app.module.ts                 # Root module (auto-wired by Candy CLI)
-│   ├── app.controller.ts             # (REST) Sample health endpoint
-│   ├── tracing.ts                    # (OpenTelemetry) SDK bootstrap
-│   ├── graphql/
-│   │   ├── graphql.module.ts
-│   │   └── app.resolver.ts
-│   ├── grpc/
-│   │   ├── grpc.module.ts
-│   │   └── hero/hero.proto
-│   ├── kafka/
-│   │   ├── kafka.module.ts
-│   │   └── kafka.consumer.ts         # Includes DLQ consumer if selected
-│   ├── rabbitmq/
-│   │   ├── rabbitmq.module.ts
-│   │   └── rabbitmq.consumer.ts      # nack → DLX dead letter exchange
-│   ├── bullmq/
-│   │   ├── bullmq.module.ts          # 3 retries with exponential backoff
-│   │   └── bullmq.processor.ts
-│   ├── redis/
-│   │   └── redis.module.ts
-│   ├── logger/
-│   │   └── logger.module.ts          # Winston or Pino
-│   ├── observability/
-│   │   └── prometheus.module.ts
-│   └── resiliency/
-│       ├── resiliency.module.ts
-│       └── circuit-breaker.service.ts
-├── docker-compose.yml                # Pre-configured for your chosen stack
-├── .env.example                      # All environment variables documented
-├── Dockerfile                        # Multi-stage, non-root production image
-└── package.json
+Every project generated by Candy CLI includes a `test/regression.e2e-spec.ts`. Unlike standard unit tests, this suite:
+1.  Connects to your **real Docker containers**.
+2.  Performs **CRUD Smoke Tests** on your chosen database.
+3.  Validates **Messaging Connectivity** (Kafka/RabbitMQ).
+4.  Asserts **Health Status** of all infrastructure sidecars.
+
+**Run it with:**
+```bash
+docker-compose up -d
+npm run test:e2e
 ```
 
 ---
 
-## Requirements
+## 📁 Standard Architecture
 
-- Node.js >= 18
-- npm / yarn / pnpm
-- Docker (optional, for `docker-compose up`)
+Generated projects follow a modular structure designed for scale:
+```text
+src/
+├── main.ts            # Hardened security (CORS, Throttler, Pipes)
+├── app.module.ts      # Global Config (Joi validation) & Service Linking
+├── database/          # Clean ORM/ODM modules
+├── examples/          # Sample REST/GraphQL/gRPC logic (CRUD)
+├── kafka/             # Kafka Consumers with DLQ handling
+└── resiliency/        # Circuit Breaker implementations
+```
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) first.
+We love PRs! If you want to add a new template (e.g., SQS support or Vitest integration), please check our [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## Security
-
-Please see [SECURITY.md](./SECURITY.md) for our responsible disclosure policy.
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md) for a history of notable changes.
-
-## License
-
+## 📄 License
 [MIT](./LICENSE) © Ashish Kushwaha

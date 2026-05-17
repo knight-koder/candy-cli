@@ -1,0 +1,104 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, Types, Schema as MongooseSchema } from 'mongoose';
+<% if (apiDocs) { %>import { ApiProperty } from '@nestjs/swagger';<% } %>
+
+export type ExampleDocument = HydratedDocument<Example>;
+
+export enum ExampleStatus {
+  ACTIVE   = 'active',
+  INACTIVE = 'inactive',
+  PENDING  = 'pending',
+}
+
+// ── Nested subdocument schema ─────────────────────────────────────────────────
+@Schema({ _id: false })
+export class Address {
+  @Prop({ required: true })
+  street: string;
+
+  @Prop({ required: true })
+  city: string;
+
+  @Prop()
+  postalCode?: string;
+}
+export const AddressSchema = SchemaFactory.createForClass(Address);
+
+/**
+ * Example — Mongoose reference schema for MongoDB.
+ *
+ * One field per major type is shown. Delete what you don't need.
+ * Each new schema must be registered in database.module.ts via:
+ *   MongooseModule.forFeature([{ name: YourModel.name, schema: YourSchema }])
+ */
+@Schema({ timestamps: true, collection: 'examples' })
+export class Example {
+  // ── String ────────────────────────────────────────────────────────────────
+  <% if (apiDocs) { %>@ApiProperty({ example: 'My Entity', description: 'The name of the example entity' })<% } %>
+  @Prop({ required: true, maxlength: 255, index: true })
+  name: string;
+
+  <% if (apiDocs) { %>@ApiProperty({ example: 'A detailed description', required: false })<% } %>
+  @Prop()
+  description?: string;
+
+  <% if (apiDocs) { %>@ApiProperty({ enum: ExampleStatus, default: ExampleStatus.PENDING })<% } %>
+  @Prop({ enum: Object.values(ExampleStatus), default: ExampleStatus.PENDING })
+  status?: string;                                // enum stored as string
+
+  // ── Number ────────────────────────────────────────────────────────────────
+  @Prop({ default: 0 })
+  viewCount?: number;                             // plain 64-bit float (IEEE 754)
+
+  @Prop({ type: Number, min: 0, max: 5 })
+  rating?: number;                                // with range validation
+
+  // ── Boolean ───────────────────────────────────────────────────────────────
+  @Prop({ default: true })
+  isActive?: boolean;
+
+  // ── Date ──────────────────────────────────────────────────────────────────
+  @Prop({ type: Date })
+  birthDate?: Date;
+
+  @Prop({ type: Date, default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) })
+  expiresAt?: Date;                               // default: 30 days from now
+
+  // ── Buffer (Binary) ────────────────────────────────────────────────────────
+  @Prop({ type: Buffer })
+  thumbnail?: Buffer;                             // raw binary, e.g. small image
+
+  // ── Mixed / any ───────────────────────────────────────────────────────────
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  metadata?: Record<string, unknown>;             // schema-less arbitrary object
+
+  // ── Nested subdocument ────────────────────────────────────────────────────
+  @Prop({ type: AddressSchema })
+  address?: Address;
+
+  // ── Array of primitives ───────────────────────────────────────────────────
+  @Prop({ type: [String] })
+  tags?: string[];
+
+  @Prop({ type: [Number] })
+  scores?: number[];
+
+  // ── Array of subdocuments ─────────────────────────────────────────────────
+  @Prop({ type: [AddressSchema] })
+  shippingAddresses?: Address[];
+
+  // ── ObjectId reference (populate) ─────────────────────────────────────────
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  ownerId?: Types.ObjectId;                       // foreign reference — use .populate('ownerId')
+
+  // ── Map (key-value store) ─────────────────────────────────────────────────
+  @Prop({ type: Map, of: String })
+  attributes?: Map<string, string>;              // e.g. { color: 'red', size: 'M' }
+
+  // timestamps: true in @Schema adds createdAt + updatedAt automatically
+}
+
+export const ExampleSchema = SchemaFactory.createForClass(Example);
+
+// Optional: add a text index for full-text search on name + description
+ExampleSchema.index({ name: 'text', description: 'text' });

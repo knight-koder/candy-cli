@@ -1,0 +1,67 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Example, ExampleDocument } from '../../database/mongo/example.entity';
+import { CreateExampleDto } from './dto/create-example.dto';
+import { UpdateExampleDto } from './dto/update-example.dto';
+<% if (apiDocs) { %>import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';<% } %>
+
+<% if (apiDocs) { %>@ApiTags('Examples (Mongo CRUD)')<% } %>
+@Controller('examples/mongo')
+export class ExampleController {
+  constructor(
+    @InjectModel(Example.name)
+    private readonly model: Model<ExampleDocument>,
+  ) {}
+
+  <% if (apiDocs) { %>@ApiOperation({ summary: 'Create a new example' })
+  @ApiResponse({ status: 201, description: 'Created successfully.' })
+  @ApiBody({ type: CreateExampleDto })<% } %>
+  @Post()
+  async create(@Body() data: CreateExampleDto) {
+    return await this.model.create(data);
+  }
+
+  <% if (apiDocs) { %>@ApiOperation({ summary: 'List all examples' })<% } %>
+  @Get()
+  async findAll() {
+    return await this.model.find().sort({ createdAt: -1 }).exec();
+  }
+
+  <% if (apiDocs) { %>@ApiOperation({ summary: 'Get a single example by ID' })
+  @ApiResponse({ status: 404, description: 'Not found.' })<% } %>
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    const doc = await this.model.findById(id).exec();
+    if (!doc) throw new NotFoundException(`Example with ID ${id} not found`);
+    return doc;
+  }
+
+  <% if (apiDocs) { %>@ApiOperation({ summary: 'Update an example' })
+  @ApiBody({ type: UpdateExampleDto })<% } %>
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() data: UpdateExampleDto) {
+    const doc = await this.model
+      .findByIdAndUpdate(id, data, { new: true })
+      .exec();
+    if (!doc) throw new NotFoundException(`Example with ID ${id} not found`);
+    return doc;
+  }
+
+  <% if (apiDocs) { %>@ApiOperation({ summary: 'Delete an example' })<% } %>
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    const doc = await this.model.findByIdAndDelete(id).exec();
+    if (!doc) throw new NotFoundException(`Example with ID ${id} not found`);
+    return doc;
+  }
+}

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 <% if (dlqAndRetries) { %>import { ScheduleModule } from '@nestjs/schedule';<% } %>
 import { BullMQProcessor } from './bullmq.processor';
 import { BullMQProducerService } from './bullmq.producer.service';
@@ -7,12 +8,16 @@ import { BullMQProducerService } from './bullmq.producer.service';
 
 @Module({
   imports: [
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        password: process.env.REDIS_PASSWORD,
-      },
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST') || 'localhost',
+          port: configService.get<number>('REDIS_PORT') || 6379,
+          password: configService.get<string>('REDIS_PASSWORD'),
+        },
+      }),
     }),
     BullModule.registerQueue({
       name: '<%= projectName %>-queue',

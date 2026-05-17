@@ -1,0 +1,44 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { PrismaClient } from './prisma/generated';
+
+/**
+ * PostgresPrismaService — wraps PrismaClient for PostgreSQL.
+ *
+ * Usage:
+ *   constructor(private readonly prisma: PostgresPrismaService) {}
+ *   const examples = await this.prisma.example.findMany();
+ *
+ * Run migrations with:
+ *   npx prisma migrate dev --schema=src/database/postgres/prisma/schema.prisma
+ *
+ * Regenerate the client after schema changes:
+ *   npx prisma generate --schema=src/database/postgres/prisma/schema.prisma
+ */
+@Injectable()
+export class PostgresPrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
+  private readonly logger = new Logger(PostgresPrismaService.name);
+
+  async onModuleInit(): Promise<void> {
+    await this.$connect();
+    this.logger.log('PostgreSQL Prisma client connected');
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.$disconnect();
+    this.logger.log('PostgreSQL Prisma client disconnected');
+  }
+
+  /** Health check — returns true if the DB is reachable. */
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.$queryRaw`SELECT 1`;
+      return true;
+    } catch (err) {
+      this.logger.error('PostgreSQL Prisma health check failed', err);
+      return false;
+    }
+  }
+}

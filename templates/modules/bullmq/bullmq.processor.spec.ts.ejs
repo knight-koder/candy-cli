@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BullMQProcessor } from './bullmq.processor';
+import { Job } from 'bullmq';
 
 describe('BullMQProcessor', () => {
   let processor: BullMQProcessor;
@@ -18,10 +19,10 @@ describe('BullMQProcessor', () => {
 
   it('process should handle a job without throwing', async () => {
     const mockJob = {
-      id: 'test-job-1',
-      name: 'test',
-      data: { userId: 1 },
-    } as any;
+      id: '1',
+      name: 'test-job',
+      data: { foo: 'bar' },
+    } as unknown as Job;
 
     await expect(processor.process(mockJob)).resolves.not.toThrow();
   });

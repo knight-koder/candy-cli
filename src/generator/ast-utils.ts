@@ -1,6 +1,11 @@
 import { Project, QuoteKind, SyntaxKind } from 'ts-morph';
 import path from 'path';
 
+import { 
+  APP_MODULE_FILE, 
+  APP_MODULE_CLASS 
+} from '../constants/index.js';
+
 export interface ModuleInjection {
   moduleName: string;
   importPath: string;
@@ -16,12 +21,12 @@ export async function injectModuleToAppModule(
     },
   });
 
-  const appModulePath = path.join(projectDir, 'src/app.module.ts');
+  const appModulePath = path.join(projectDir, APP_MODULE_FILE);
   const sourceFile = project.addSourceFileAtPath(appModulePath);
 
-  const classDeclaration = sourceFile.getClass('AppModule');
+  const classDeclaration = sourceFile.getClass(APP_MODULE_CLASS);
   if (!classDeclaration) {
-    throw new Error('Could not find AppModule class in src/app.module.ts');
+    throw new Error(`Could not find ${APP_MODULE_CLASS} class in ${APP_MODULE_FILE}`);
   }
 
   const moduleDecorator = classDeclaration.getDecorator('Module');

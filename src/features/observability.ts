@@ -1,58 +1,64 @@
 import type { FeatureConfig } from './types.js';
+import { PATHS, LOGGERS, OBSERVABILITY, FEATURE_NAMES } from '../constants/index.js';
+import { getJaegerService, getPrometheusService } from './infrastructure.js';
+import { getRelativeImportPath } from './utils.js';
 
 export const openTelemetryFeature: FeatureConfig = {
-  name: 'OpenTelemetry',
-  condition: (a) => a.observability === 'OpenTelemetry',
-  dependencies: [
-    '@opentelemetry/sdk-node@0.39.1',
-    '@opentelemetry/api@1.4.1',
-    '@opentelemetry/auto-instrumentations-node@0.37.0',
-    '@opentelemetry/exporter-trace-otlp-http@0.39.1',
-    '@opentelemetry/resources@1.13.0',
-    '@opentelemetry/semantic-conventions@1.13.0',
-  ],
+  name: FEATURE_NAMES.OPENTELEMETRY,
+  condition: (a) => a.observability === OBSERVABILITY.OPENTELEMETRY,
+  dependencies: (a) => {
+    const deps = [
+      '@opentelemetry/sdk-node@0.39.1',
+      '@opentelemetry/api@1.4.1',
+      '@opentelemetry/auto-instrumentations-node@0.37.0',
+      '@opentelemetry/exporter-trace-otlp-http@0.39.1',
+      '@opentelemetry/resources@1.13.0',
+      '@opentelemetry/semantic-conventions@1.13.0',
+    ];
+    if (a.logger === LOGGERS.WINSTON) deps.push('@opentelemetry/instrumentation-winston');
+    if (a.logger === LOGGERS.PINO) deps.push('@opentelemetry/instrumentation-pino');
+    return deps;
+  },
   files: () => [
     { src: 'modules/observability/tracing.ts.ejs', dest: 'src/tracing.ts', type: 'render' },
   ],
   dockerServices: {
-    jaeger: {
-      image: 'jaegertracing/all-in-one:latest',
-      ports: ['16686:16686', '4318:4318'],
-    },
+    jaeger: getJaegerService(),
   },
 };
 
 export const prometheusFeature: FeatureConfig = {
-  name: 'Prometheus',
-  condition: (a) => a.observability === 'Prometheus',
+  name: FEATURE_NAMES.PROMETHEUS,
+  condition: (a) => a.observability === OBSERVABILITY.PROMETHEUS,
   dependencies: ['@willsoto/nestjs-prometheus', 'prom-client'],
   files: () => [
-    { src: 'modules/observability/prometheus.module.ts.ejs', dest: 'src/observability/prometheus.module.ts', type: 'render' },
+    { src: 'modules/observability/prometheus.module.ts.ejs', dest: `${PATHS.OBSERVABILITY}/prometheus.module.ts`, type: 'render' },
   ],
-  injection: { moduleName: 'MetricsModule', importPath: './observability/prometheus.module' },
-  dockerServices: {
-    prometheus: {
-      image: 'prom/prometheus:latest',
-      ports: ['9090:9090'],
-    },
+  injection: { 
+    moduleName: 'MetricsModule', 
+    importPath: () => `${getRelativeImportPath(PATHS.OBSERVABILITY)}/prometheus.module` 
   },
+  dockerServices: () => ({ prometheus: getPrometheusService() }),
 };
 
 export const swaggerFeature: FeatureConfig = {
-  name: 'Swagger',
+  name: FEATURE_NAMES.SWAGGER,
   condition: (a) => a.apiDocs,
   dependencies: ['@nestjs/swagger'],
 };
 
 export const opossumFeature: FeatureConfig = {
-  name: 'Opossum',
+  name: FEATURE_NAMES.OPOSSUM,
   condition: (a) => a.opossum,
   dependencies: ['opossum'],
   devDependencies: ['@types/opossum'],
   files: () => [
-    { src: 'modules/resiliency/circuit-breaker.service.ts.ejs', dest: 'src/resiliency/circuit-breaker.service.ts', type: 'render' },
-    { src: 'modules/resiliency/circuit-breaker.service.spec.ts.ejs', dest: 'src/resiliency/circuit-breaker.service.spec.ts', type: 'render' },
-    { src: 'modules/resiliency/resiliency.module.ts.ejs', dest: 'src/resiliency/resiliency.module.ts', type: 'render' },
+    { src: 'modules/resiliency/circuit-breaker.service.ts.ejs', dest: `${PATHS.RESILIENCY}/circuit-breaker.service.ts`, type: 'render' },
+    { src: 'modules/resiliency/circuit-breaker.service.spec.ts.ejs', dest: `${PATHS.RESILIENCY}/circuit-breaker.service.spec.ts`, type: 'render' },
+    { src: 'modules/resiliency/resiliency.module.ts.ejs', dest: `${PATHS.RESILIENCY}/resiliency.module.ts`, type: 'render' },
   ],
-  injection: { moduleName: 'ResiliencyModule', importPath: './resiliency/resiliency.module' },
+  injection: { 
+    moduleName: 'ResiliencyModule', 
+    importPath: () => `${getRelativeImportPath(PATHS.RESILIENCY)}/resiliency.module` 
+  },
 };

@@ -1,0 +1,99 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
+import { Example } from '../../database/mongo/example.schema';
+import { ExampleController } from './mongo-example.controller';
+import { NotFoundException } from '@nestjs/common';
+import { Model } from 'mongoose';
+
+describe('ExampleController (Mongo)', () => {
+  let controller: ExampleController;
+  let model: Model<Example>;
+
+  const mockExample = {
+    _id: '60d5ecb31622b7d34a5d8f6c',
+    name: 'Test Example',
+    description: 'Test Description',
+  };
+
+  const mockModel = {
+    create: jest.fn().mockResolvedValue(mockExample),
+    find: jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockExample]),
+      }),
+    }),
+    findById: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(mockExample),
+    }),
+    findByIdAndUpdate: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(mockExample),
+    }),
+    findByIdAndDelete: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(mockExample),
+    }),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ExampleController],
+      providers: [
+        {
+          provide: getModelToken(Example.name),
+          useValue: mockModel,
+        },
+      ],
+    }).compile();
+
+    controller = module.get<ExampleController>(ExampleController);
+    model = module.get(getModelToken(Example.name));
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('create()', () => {
+    it('should create a new document', async () => {
+      const dto = { name: 'New Entity' };
+      const result = await controller.create(dto);
+      expect(result).toEqual(mockExample);
+      expect(mockModel.create).toHaveBeenCalledWith(dto);
+    });
+  });
+
+  describe('findAll()', () => {
+    it('should return an array of documents', async () => {
+      const result = await controller.findAll();
+      expect(result).toEqual([mockExample]);
+    });
+  });
+
+  describe('findOne()', () => {
+    it('should return a single document', async () => {
+      const result = await controller.findOne(mockExample._id);
+      expect(result).toEqual(mockExample);
+    });
+
+    it('should throw NotFoundException if document not found', async () => {
+      mockModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      await expect(controller.findOne('unknown')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update()', () => {
+    it('should update a document', async () => {
+      const dto = { name: 'Updated Name' };
+      const result = await controller.update(mockExample._id, dto);
+      expect(result).toEqual(mockExample);
+    });
+  });
+
+  describe('remove()', () => {
+    it('should remove a document', async () => {
+      const result = await controller.remove(mockExample._id);
+      expect(result).toEqual(mockExample);
+    });
+  });
+});

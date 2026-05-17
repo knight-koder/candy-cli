@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RabbitMQConsumerController } from './rabbitmq.consumer';
+import { RmqContext } from '@nestjs/microservices';
 
 const mockChannel = {
   ack: jest.fn(),
@@ -28,7 +29,7 @@ describe('RabbitMQConsumerController', () => {
   });
 
   it('handleMessage should ack the message on success', async () => {
-    await controller.handleMessage({ data: 'test' }, mockRmqContext as any);
+    await controller.handleMessage({ data: 'test' }, mockRmqContext as unknown as RmqContext);
     expect(mockChannel.ack).toHaveBeenCalled();
     expect(mockChannel.nack).not.toHaveBeenCalled();
   });

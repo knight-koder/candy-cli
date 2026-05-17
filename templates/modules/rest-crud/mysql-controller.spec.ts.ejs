@@ -1,0 +1,92 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ExampleController } from './mysql-example.controller';
+import { ExampleEntity } from '../../database/mysql/example.entity';
+import { NotFoundException } from '@nestjs/common';
+
+describe('ExampleController (MySQL)', () => {
+  let controller: ExampleController;
+  let repository: Repository<ExampleEntity>;
+
+  const mockExample = {
+    id: '00000000-0000-0000-0000-000000000000',
+    name: 'Test Example',
+    description: 'Test Description',
+  };
+
+  const mockRepository = {
+    create: jest.fn().mockImplementation((dto) => dto),
+    save: jest.fn().mockImplementation((entity) => Promise.resolve({ ...mockExample, ...entity })),
+    find: jest.fn().mockResolvedValue([mockExample]),
+    findOne: jest.fn().mockResolvedValue(mockExample),
+    remove: jest.fn().mockResolvedValue(mockExample),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ExampleController],
+      providers: [
+        {
+          provide: getRepositoryToken(ExampleEntity),
+          useValue: mockRepository,
+        },
+      ],
+    }).compile();
+
+    controller = module.get<ExampleController>(ExampleController);
+    repository = module.get<Repository<ExampleEntity>>(getRepositoryToken(ExampleEntity));
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('create()', () => {
+    it('should create a new entity', async () => {
+      const dto = { name: 'New Entity' };
+      const result = await controller.create(dto);
+      expect(result).toEqual(expect.objectContaining(dto));
+      expect(mockRepository.create).toHaveBeenCalledWith(dto);
+      expect(mockRepository.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll()', () => {
+    it('should return an array of entities', async () => {
+      const result = await controller.findAll();
+      expect(result).toEqual([mockExample]);
+      expect(mockRepository.find).toHaveBeenCalled();
+    });
+  });
+
+  describe('findOne()', () => {
+    it('should return a single entity', async () => {
+      const result = await controller.findOne(mockExample.id);
+      expect(result).toEqual(mockExample);
+      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: mockExample.id } });
+    });
+
+    it('should throw NotFoundException if entity not found', async () => {
+      mockRepository.findOne.mockResolvedValueOnce(null);
+      await expect(controller.findOne('unknown')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update()', () => {
+    it('should update an entity', async () => {
+      const dto = { name: 'Updated Name' };
+      const result = await controller.update(mockExample.id, dto);
+      expect(result.name).toBe('Updated Name');
+      expect(mockRepository.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('remove()', () => {
+    it('should remove an entity', async () => {
+      const result = await controller.remove(mockExample.id);
+      expect(result).toEqual(mockExample);
+      expect(mockRepository.remove).toHaveBeenCalled();
+    });
+  });
+});

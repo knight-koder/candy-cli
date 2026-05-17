@@ -1,36 +1,45 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { KafkaProducerService } from './kafka.producer.service';
 
 @Module({
   imports: [
-    ClientsModule.register([
+    ClientsModule.registerAsync([
       {
         name: 'KAFKA_SERVICE',
-        transport: Transport.KAFKA,
-        options: {
-          client: {
-            clientId: '<%= projectName %>',
-            brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-            retry: {
-              initialRetryTime: 300,
-              retries: 10,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => {
+          const username = configService.get<string>('KAFKA_SASL_USERNAME');
+          const password = configService.get<string>('KAFKA_SASL_PASSWORD');
+          const sasl = username && password ? {
+            mechanism: 'plain' as const,
+            username,
+            password,
+          } : undefined;
+
+          return {
+            transport: Transport.KAFKA,
+            options: {
+              client: {
+                clientId: '<%= projectName %>',
+                brokers: (configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+                retry: {
+                  initialRetryTime: 1000,
+                  retries: 30,
+                },
+                ssl: configService.get<boolean>('KAFKA_SSL') || false,
+                sasl,
+              },
+              consumer: {
+                groupId: '<%= projectName %>-consumer',
+              },
+              producer: {
+                allowAutoTopicCreation: true,
+              },
             },
-            ssl: process.env.KAFKA_SSL === 'true',
-            sasl: process.env.KAFKA_SASL_USERNAME
-              ? {
-                  mechanism: 'plain',
-                  username: process.env.KAFKA_SASL_USERNAME,
-                  password: process.env.KAFKA_SASL_PASSWORD || '',
-                }
-              : undefined,
-          },
-          consumer: {
-            groupId: '<%= projectName %>-consumer',
-          },
-          producer: {
-            allowAutoTopicCreation: true,
-          },
+          };
         },
       },
     ]),

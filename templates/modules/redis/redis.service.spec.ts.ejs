@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RedisService } from './redis.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConfigService } from '@nestjs/config';
 
 const mockCacheManager = {
   get: jest.fn(),
@@ -16,6 +17,10 @@ describe('RedisService', () => {
       providers: [
         RedisService,
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(3600) },
+        },
       ],
     }).compile();
 

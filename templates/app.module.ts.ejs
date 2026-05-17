@@ -1,57 +1,231 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-<% if (protocols.includes('REST')) { %>import { AppController } from './app.controller';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import * as Joi from 'joi';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { HealthModule } from './health/health.module';
+
+
+<% if (protocols.includes('REST')) { %>
+import { AppController } from './app.controller';
 import { AppService } from './app.service';
 <% } %>
-<% if (protocols.includes('GraphQL')) { %>import { GraphqlModule } from './graphql/graphql.module';
+
+<% if (protocols.includes('GraphQL')) { %>
+import { GraphqlModule } from './graphql/graphql.module';
 <% } %>
-<% if (protocols.includes('gRPC')) { %>import { GrpcClientModule } from './grpc/grpc.module';
+
+<% if (protocols.includes('gRPC')) { %>
+import { GrpcClientModule } from './grpc/grpc.module';
 <% } %>
-<% if (protocols.includes('WebSockets')) { %>import { WebSocketsModule } from './websockets/websockets.module';
+
+<% if (protocols.includes('WebSockets')) { %>
+import { WebSocketsModule } from './websockets/websockets.module';
 <% } %>
-<% if (messagingQueue && queueType === 'Kafka') { %>import { KafkaModule } from './kafka/kafka.module';
+
+<% if (messagingQueue && queueType === 'Kafka') { %>
+import { KafkaModule } from './kafka/kafka.module';
 import { KafkaConsumerController } from './kafka/kafka.consumer';
 <% } %>
-<% if (messagingQueue && queueType === 'RabbitMQ') { %>import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
+
+<% if (messagingQueue && queueType === 'RabbitMQ') { %>
+import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RabbitMQConsumerController } from './rabbitmq/rabbitmq.consumer';
 <% } %>
-<% if (messagingQueue && queueType === 'BullMQ') { %>import { BullMQModule } from './bullmq/bullmq.module';
+
+<% if (messagingQueue && queueType === 'BullMQ') { %>
+import { BullMQModule } from './bullmq/bullmq.module';
 <% } %>
-<% if (redisCache) { %>import { RedisModule } from './redis/redis.module';
+
+<% if (redisCache) { %>
+import { RedisModule } from './redis/redis.module';
 <% } %>
-<% if (logger === 'Winston') { %>import { LoggerModule } from './logger/logger.module';
-<% } else if (logger === 'Pino') { %>import { LoggerModule } from './logger/logger.module';
+
+<% if (database) { %>
+  <% if (databases.includes('PostgreSQL') && postgresOrm === 'TypeORM') { %>
+import { PostgresDatabaseModule } from './database/postgres/database.module';
+  <% } %>
+  <% if (databases.includes('PostgreSQL') && postgresOrm === 'Prisma') { %>
+import { PostgresPrismaModule } from './database/postgres/prisma.module';
+  <% } %>
+  <% if (databases.includes('MySQL') && mysqlOrm === 'TypeORM') { %>
+import { MysqlDatabaseModule } from './database/mysql/database.module';
+  <% } %>
+  <% if (databases.includes('MySQL') && mysqlOrm === 'Prisma') { %>
+import { MysqlPrismaModule } from './database/mysql/prisma.module';
+  <% } %>
+  <% if (databases.includes('MongoDB')) { %>
+import { MongoDatabaseModule } from './database/mongo/database.module';
+  <% } %>
 <% } %>
-<% if (observability === 'Prometheus') { %>import { MetricsModule } from './observability/prometheus.module';
+
+<% if (protocols.includes('REST') && (databases?.some(db => db === 'PostgreSQL' || db === 'MySQL' || db === 'MongoDB'))) { %>
+import { ExamplesModule } from './examples/examples.module';
 <% } %>
-<% if (opossum) { %>import { ResiliencyModule } from './resiliency/resiliency.module';
+
+<% if (logger === 'Winston' || logger === 'Pino') { %>
+import { LoggerModule } from './logger/logger.module';
+<% } %>
+
+<% if (observability === 'Prometheus') { %>
+import { MetricsModule } from './observability/prometheus.module';
+<% } %>
+
+<% if (opossum) { %>
+import { ResiliencyModule } from './resiliency/resiliency.module';
 <% } %>
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-<% if (protocols.includes('GraphQL')) { %>    GraphqlModule,
-<% } %>
-<% if (protocols.includes('gRPC')) { %>    GrpcClientModule,
-<% } %>
-<% if (protocols.includes('WebSockets')) { %>    WebSocketsModule,
-<% } %>
-<% if (messagingQueue && queueType === 'Kafka') { %>    KafkaModule,
-<% } %>
-<% if (messagingQueue && queueType === 'RabbitMQ') { %>    RabbitMQModule,
-<% } %>
-<% if (messagingQueue && queueType === 'BullMQ') { %>    BullMQModule,
-<% } %>
-<% if (redisCache) { %>    RedisModule,
-<% } %>
-<% if (logger === 'Winston' || logger === 'Pino') { %>    LoggerModule,
-<% } %>
-<% if (observability === 'Prometheus') { %>    MetricsModule,
-<% } %>
-<% if (opossum) { %>    ResiliencyModule,
-<% } %>
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema: Joi.object({
+        NODE_ENV: Joi.string()
+          .valid('development', 'production', 'test')
+          .default('development'),
+        PORT: Joi.number().default(3000),
+        CORS_ORIGIN: Joi.string().default(''),
+        THROTTLE_TTL: Joi.number().default(60000),
+        THROTTLE_LIMIT: Joi.number().default(100),
+        <% if (database && databases.includes('PostgreSQL')) { %>
+        POSTGRES_HOST: Joi.string().required(),
+        POSTGRES_PORT: Joi.number().default(5432),
+        POSTGRES_USER: Joi.string().required(),
+        POSTGRES_PASSWORD: Joi.string().required(),
+        POSTGRES_DB: Joi.string().required(),
+        <% } %>
+        <% if (database && databases.includes('MySQL')) { %>
+        MYSQL_HOST: Joi.string().required(),
+        MYSQL_PORT: Joi.number().default(3306),
+        MYSQL_USER: Joi.string().required(),
+        MYSQL_PASSWORD: Joi.string().required(),
+        MYSQL_DB: Joi.string().required(),
+        <% } %>
+        <% if (database && databases.includes('MongoDB')) { %>
+        MONGO_URI: Joi.string().required(),
+        <% } %>
+        <% if (messagingQueue && queueType === 'Kafka') { %>
+        KAFKA_BROKERS: Joi.string().required(),
+        KAFKA_SSL: Joi.boolean().default(false),
+        <% } %>
+        <% if (messagingQueue && queueType === 'RabbitMQ') { %>
+        RABBITMQ_URL: Joi.string().required(),
+        <% } %>
+        <% if (protocols.includes('gRPC')) { %>
+        GRPC_URL: Joi.string().default('localhost:50051'),
+        <% } %>
+        <% if (redisCache || (messagingQueue && queueType === 'BullMQ')) { %>
+        REDIS_HOST: Joi.string().default('localhost'),
+        REDIS_PORT: Joi.number().default(6379),
+        <% } %>
+      }),
+    }),
+    HealthModule,
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule<% if (redisCache) { %>, RedisModule<% } %>],
+      inject: [ConfigService<% if (redisCache) { %>, 'REDIS_CLIENT'<% } %>],
+      useFactory: (configService: ConfigService<% if (redisCache) { %>, redisClient: any<% } %>) => {
+        const ttl = configService.get<number>('THROTTLE_TTL') ?? 60000;
+        const limit = configService.get<number>('THROTTLE_LIMIT') ?? 100;
+        
+        <% if (redisCache) { %>
+        const storagePkg = require('@nest-lab/throttler-storage-redis');
+        const RedisStorage = storagePkg.ThrottlerStorageRedisService || storagePkg.ThrottlerStorageRedis || storagePkg;
+        return {
+          throttlers: [{ ttl, limit }],
+          storage: new RedisStorage(redisClient),
+        };
+        <% } else { %>
+        return {
+          throttlers: [{ ttl, limit }],
+        };
+        <% } %>
+      },
+    }),
+    <% if (protocols.includes('GraphQL')) { %>
+    GraphqlModule,
+    <% } %>
+    <% if (protocols.includes('gRPC')) { %>
+    GrpcClientModule,
+    <% } %>
+    <% if (protocols.includes('WebSockets')) { %>
+    WebSocketsModule,
+    <% } %>
+    <% if (messagingQueue && queueType === 'Kafka') { %>
+    KafkaModule,
+    <% } %>
+    <% if (messagingQueue && queueType === 'RabbitMQ') { %>
+    RabbitMQModule,
+    <% } %>
+    <% if (messagingQueue && queueType === 'BullMQ') { %>
+    BullMQModule,
+    <% } %>
+    <% if (redisCache) { %>
+    RedisModule,
+    <% } %>
+    <% if (database) { %>
+      <% if (databases.includes('PostgreSQL') && postgresOrm === 'TypeORM') { %>
+    PostgresDatabaseModule,
+      <% } %>
+      <% if (databases.includes('PostgreSQL') && postgresOrm === 'Prisma') { %>
+    PostgresPrismaModule,
+      <% } %>
+      <% if (databases.includes('MySQL') && mysqlOrm === 'TypeORM') { %>
+    MysqlDatabaseModule,
+      <% } %>
+      <% if (databases.includes('MySQL') && mysqlOrm === 'Prisma') { %>
+    MysqlPrismaModule,
+      <% } %>
+      <% if (databases.includes('MongoDB')) { %>
+    MongoDatabaseModule,
+      <% } %>
+    <% } %>
+    <% if (protocols.includes('REST') && (databases?.some(db => db === 'PostgreSQL' || db === 'MySQL' || db === 'MongoDB'))) { %>
+    ExamplesModule,
+    <% } %>
+    <% if (logger === 'Winston' || logger === 'Pino') { %>
+    LoggerModule,
+    <% } %>
+    <% if (observability === 'Prometheus') { %>
+    MetricsModule,
+    <% } %>
+    <% if (opossum) { %>
+    ResiliencyModule,
+    <% } %>
   ],
-  controllers: [<% if (protocols.includes('REST')) { %>AppController<% } %><% if (messagingQueue && queueType === 'Kafka') { %>, KafkaConsumerController<% } %><% if (messagingQueue && queueType === 'RabbitMQ') { %>, RabbitMQConsumerController<% } %>],
-  providers: [<% if (protocols.includes('REST')) { %>AppService<% } %>],
+  controllers: [
+    <% if (protocols.includes('REST')) { %>
+    AppController,
+    <% } %>
+    <% if (messagingQueue && queueType === 'Kafka') { %>
+    KafkaConsumerController,
+    <% } %>
+    <% if (messagingQueue && queueType === 'RabbitMQ') { %>
+    RabbitMQConsumerController,
+    <% } %>
+  ],
+  providers: [
+    <% if (protocols.includes('REST')) { %>
+    AppService,
+    <% } %>
+    // Applies ThrottlerGuard globally to all routes
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    <% if (protocols.includes('REST')) { %>
+      <% if (logger === 'Winston') { %>
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const morgan = require('morgan');
+        consumer.apply(morgan('dev')).forRoutes('*');
+      } catch (e) {
+        // morgan not installed
+      }
+    }
+      <% } %>
+      // Pino handles its own middleware via the LoggerModule (nestjs-pino)
+    <% } %>
+  }
+}

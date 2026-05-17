@@ -3,7 +3,7 @@ import { Job } from 'bullmq';
 
 @Processor('<%= projectName %>-queue')
 export class BullMQProcessor extends WorkerHost {
-  async process(job: Job<any>): Promise<void> {
+  async process(job: Job<unknown>): Promise<void> {
     console.log(`Processing job [${job.id}] of type [${job.name}]`);
     // Add your job processing logic here
     console.log('Job data:', job.data);

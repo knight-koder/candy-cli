@@ -1,0 +1,44 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { MongoDatabaseService } from './database.service';
+import { getConnectionToken } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
+
+describe('MongoDatabaseService', () => {
+  let service: MongoDatabaseService;
+  let connection: jest.Mocked<Connection>;
+
+  const buildMockConnection = (readyState: number) =>
+    ({ readyState } as unknown as jest.Mocked<Connection>);
+
+  beforeEach(async () => {
+    connection = buildMockConnection(1);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MongoDatabaseService,
+        { provide: getConnectionToken(), useValue: connection },
+      ],
+    }).compile();
+
+    service = module.get<MongoDatabaseService>(MongoDatabaseService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('isHealthy()', () => {
+    it('should return true when readyState is 1 (connected)', async () => {
+      expect(await service.isHealthy()).toBe(true);
+    });
+
+    it('should return false when readyState is 0 (disconnected)', async () => {
+      (service as any).connection = buildMockConnection(0);
+      expect(await service.isHealthy()).toBe(false);
+    });
+  });
+
+  it('getConnection() should return the injected Connection', () => {
+    expect(service.getConnection()).toBe(connection);
+  });
+});

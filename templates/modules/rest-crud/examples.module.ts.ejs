@@ -1,0 +1,27 @@
+import { Module } from '@nestjs/common';
+<% if (databases.includes('PostgreSQL') && postgresOrm === 'TypeORM') { %>
+import { PostgresDatabaseModule } from '../database/postgres/database.module';
+import { ExampleController as PostgresExampleController } from './rest/postgres-example.controller';
+<% } %>
+<% if (databases.includes('MySQL') && mysqlOrm === 'TypeORM') { %>
+import { MysqlDatabaseModule } from '../database/mysql/database.module';
+import { ExampleController as MysqlExampleController } from './rest/mysql-example.controller';
+<% } %>
+<% if (databases.includes('MongoDB')) { %>
+import { MongoDatabaseModule } from '../database/mongo/database.module';
+import { ExampleController as MongoExampleController } from './rest/mongo-example.controller';
+<% } %>
+
+@Module({
+  imports: [
+    <% if (databases.includes('PostgreSQL') && postgresOrm === 'TypeORM') { %>PostgresDatabaseModule,<% } %>
+    <% if (databases.includes('MySQL') && mysqlOrm === 'TypeORM') { %>MysqlDatabaseModule,<% } %>
+    <% if (databases.includes('MongoDB')) { %>MongoDatabaseModule,<% } %>
+  ],
+  controllers: [
+    <% if (databases.includes('PostgreSQL') && postgresOrm === 'TypeORM') { %>PostgresExampleController,<% } %>
+    <% if (databases.includes('MySQL') && mysqlOrm === 'TypeORM') { %>MysqlExampleController,<% } %>
+    <% if (databases.includes('MongoDB')) { %>MongoExampleController,<% } %>
+  ],
+})
+export class ExamplesModule {}

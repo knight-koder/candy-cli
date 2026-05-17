@@ -1,0 +1,15 @@
+import { Global, Module } from '@nestjs/common';
+import { MysqlPrismaService } from './prisma.service';
+
+/**
+ * MysqlPrismaModule — provides PrismaService for MySQL.
+ *
+ * Marked as @Global so PrismaService can be injected anywhere in the app
+ * without needing to re-import this module.
+ */
+@Global()
+@Module({
+  providers: [MysqlPrismaService],
+  exports: [MysqlPrismaService],
+})
+export class MysqlPrismaModule {}

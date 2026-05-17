@@ -22,8 +22,9 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    // Subscribe to reply topics for request/reply patterns before connecting
-    this.client.subscribeToResponseOf('order.process');
+    // Subscribe to reply topics for request/reply patterns before connecting.
+    // Example: this.client.subscribeToResponseOf('order.process');
+    
     await this.client.connect();
   }
 
@@ -38,7 +39,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
    * @param topic  The Kafka topic name
    * @param payload  The message payload (will be JSON-serialized)
    */
-  emit<T>(topic: string, payload: T): Observable<any> {
+  emit<T>(topic: string, payload: T): Observable<T> {
     return this.client.emit(topic, payload);
   }
 

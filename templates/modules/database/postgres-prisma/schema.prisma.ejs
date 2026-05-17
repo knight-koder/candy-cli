@@ -1,0 +1,34 @@
+// This is your Prisma schema file for PostgreSQL.
+// Learn more: https://pris.ly/d/prisma-schema
+//
+// NOTE: If you also have a MySQL Prisma setup, each DB has its own schema.prisma
+// since Prisma supports one datasource per schema file.
+//
+// Run migrations:
+//   npx prisma migrate dev --schema=src/database/postgres/prisma/schema.prisma --name init
+//
+// Regenerate client after schema changes:
+//   npx prisma generate --schema=src/database/postgres/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+// ─────────────────────────────────────────────
+// Starter model — replace with your domain models
+// ─────────────────────────────────────────────
+model Example {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(255)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("examples")
+}

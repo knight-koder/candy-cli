@@ -1,0 +1,48 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { MysqlDatabaseService } from './database.service';
+import { DataSource } from 'typeorm';
+import { getDataSourceToken } from '@nestjs/typeorm';
+
+describe('MysqlDatabaseService', () => {
+  let service: MysqlDatabaseService;
+  
+  const mockDataSource = {
+    query: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MysqlDatabaseService,
+        {
+          provide: getDataSourceToken(),
+          useValue: mockDataSource,
+        },
+      ],
+    }).compile();
+
+    service = module.get<MysqlDatabaseService>(MysqlDatabaseService);
+    // Mock the logger to keep test output clean
+    jest.spyOn(service['logger'], 'error').mockImplementation(() => {});
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('isHealthy()', () => {
+    it('should return true when the DB responds', async () => {
+      mockDataSource.query.mockResolvedValueOnce([{ '1': 1 }]);
+      expect(await service.isHealthy()).toBe(true);
+    });
+
+    it('should return false when the DB throws', async () => {
+      mockDataSource.query.mockRejectedValueOnce(new Error('connection refused'));
+      expect(await service.isHealthy()).toBe(false);
+    });
+  });
+
+  it('getDataSource() should return the injected DataSource', () => {
+    expect(service.getDataSource()).toBe(mockDataSource);
+  });
+});

@@ -1,0 +1,44 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { PrismaClient } from './prisma/generated';
+
+/**
+ * MysqlPrismaService — wraps PrismaClient for MySQL.
+ *
+ * Usage:
+ *   constructor(private readonly prisma: MysqlPrismaService) {}
+ *   const examples = await this.prisma.example.findMany();
+ *
+ * Run migrations with:
+ *   npx prisma migrate dev --schema=src/database/mysql/prisma/schema.prisma
+ *
+ * Regenerate the client after schema changes:
+ *   npx prisma generate --schema=src/database/mysql/prisma/schema.prisma
+ */
+@Injectable()
+export class MysqlPrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
+  private readonly logger = new Logger(MysqlPrismaService.name);
+
+  async onModuleInit(): Promise<void> {
+    await this.$connect();
+    this.logger.log('MySQL Prisma client connected');
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.$disconnect();
+    this.logger.log('MySQL Prisma client disconnected');
+  }
+
+  /** Health check — returns true if the DB is reachable. */
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.$queryRaw`SELECT 1`;
+      return true;
+    } catch (err) {
+      this.logger.error('MySQL Prisma health check failed', err);
+      return false;
+    }
+  }
+}

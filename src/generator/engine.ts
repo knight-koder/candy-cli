@@ -1,9 +1,8 @@
-import { PromptAnswers } from '../prompts/index.js';
-import { FEATURES, FileInjection } from './features.js';
+import { PromptAnswers } from '../features/types.js';
+import { FEATURES } from '../features/index.js';
+import { FileInjection, DockerService } from '../features/types.js';
 import { injectModuleToAppModule } from './ast-utils.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-const execAsync = promisify(exec);
+import { spawn } from 'child_process';
 import ejs from 'ejs';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -11,9 +10,38 @@ import path from 'path';
 import fs from 'fs-extra';
 import { fileURLToPath } from 'url';
 import { updateDockerCompose } from './compose-utils.js';
+import { 
+  NEST_CLI_COMMAND,
+  TEMPLATE_LOOKUP_DEPTH, 
+  NEST_CLI_CONFIG_FILE,
+  APP_MODULE_FILE,
+  PACKAGE_JSON_FILE,
+  PROTOCOLS
+} from '../constants/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Safely executes a command without shell interpretation.
+ */
+function safeExec(command: string, args: string[], options: any = {}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Pipe stdio to avoid terminal flickering while ora spinner is active
+    const child = spawn(command, args, { stdio: 'pipe', shell: false, ...options });
+    
+    let stderr = '';
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`Command "${command} ${args.join(' ')}" failed with code ${code}\n${stderr}`));
+    });
+    child.on('error', reject);
+  });
+}
 
 /**
  * Locate the templates directory relative to the current file.
@@ -21,7 +49,7 @@ const __dirname = path.dirname(__filename);
  */
 function findTemplatesDir(): string {
   let dir = __dirname;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < TEMPLATE_LOOKUP_DEPTH; i++) {
     const candidate = path.join(dir, 'templates');
     if (fs.existsSync(candidate)) return candidate;
     dir = path.dirname(dir);
@@ -48,6 +76,59 @@ async function writeRendered(templatePath: string, destPath: string, data: objec
 }
 
 /**
+ * Resolves all resources (files, dependencies, injections, services) for a given set of features.
+ * Consolidates extraction logic to prevent duplication between generateProject and addFeature.
+ */
+function resolveFeatureResources(features: typeof FEATURES, answers: PromptAnswers) {
+  const dependencies: Set<string> = new Set();
+  const devDependencies: Set<string> = new Set();
+  const files: FileInjection[] = [];
+  const dockerServices: Record<string, DockerService> = {};
+  const injections: { moduleName: string; importPath: string }[] = [];
+
+  for (const feature of features) {
+    if (feature.condition(answers)) {
+      // 1. Dependencies
+      const deps = typeof feature.dependencies === 'function' ? feature.dependencies(answers) : (feature.dependencies || []);
+      const devDeps = typeof feature.devDependencies === 'function' ? feature.devDependencies(answers) : (feature.devDependencies || []);
+      deps.forEach(d => dependencies.add(d));
+      devDeps.forEach(d => devDependencies.add(d));
+
+      // 2. Files
+      if (feature.files) {
+        files.push(...feature.files(answers));
+      }
+
+      // 3. Docker Services
+      if (feature.dockerServices) {
+        const services = typeof feature.dockerServices === 'function' ? feature.dockerServices(answers) : feature.dockerServices;
+        Object.assign(dockerServices, services);
+      }
+
+      // 4. Module Injections (AppModule)
+      if (feature.injection) {
+        const importPath = typeof feature.injection.importPath === 'function'
+          ? feature.injection.importPath(answers)
+          : feature.injection.importPath;
+        
+        injections.push({
+          moduleName: feature.injection.moduleName,
+          importPath
+        });
+      }
+    }
+  }
+
+  return {
+    dependencies: Array.from(dependencies),
+    devDependencies: Array.from(devDependencies),
+    files,
+    dockerServices,
+    injections,
+  };
+}
+
+/**
  * Generates a complete project based on user answers.
  */
 export async function generateProject(answers: PromptAnswers): Promise<void> {
@@ -55,76 +136,90 @@ export async function generateProject(answers: PromptAnswers): Promise<void> {
 
   const spinner = ora('Scaffolding base NestJS project via @nestjs/cli...').start();
   try {
-    await execAsync(
-      `npx --yes @nestjs/cli new ${answers.projectName} --package-manager ${answers.packageManager} --skip-git --strict`
-    );
+    // npx --yes @nestjs/cli new <name> --package-manager <pm> --skip-git --strict
+    const nestArgs = [
+      '--yes', 
+      '@nestjs/cli', 
+      'new', 
+      answers.projectName, 
+      '--package-manager', 
+      answers.packageManager, 
+      '--skip-git', 
+      '--strict'
+    ];
+    if (answers.skipInstall) {
+      nestArgs.push('--skip-install');
+    }
+    await safeExec('npx', nestArgs);
     spinner.succeed(`Base project created at ${chalk.cyan(`./${answers.projectName}`)}`);
   } catch (err) {
     spinner.fail('Failed to scaffold base project.');
+    // Cleanup on failure
+    if (fs.existsSync(targetDir)) {
+      await fs.remove(targetDir);
+    }
     throw err;
   }
 
-  const dependencies: Set<string> = new Set();
-  const devDependencies: Set<string> = new Set();
-  const injections: FileInjection[] = [];
-  const dockerServices: Record<string, any> = {};
-
-  // Step 1: Collect all required resources from the registry
-  for (const feature of FEATURES) {
-    if (feature.condition(answers)) {
-      feature.dependencies?.forEach((d) => dependencies.add(d));
-      feature.devDependencies?.forEach((d) => devDependencies.add(d));
-      if (feature.files) {
-        injections.push(...feature.files(answers));
-      }
-      if (feature.dockerServices) {
-        Object.assign(dockerServices, feature.dockerServices);
-      }
-    }
-  }
+  // Step 1: Collect all required resources
+  const resources = resolveFeatureResources(FEATURES, answers);
 
   // Step 2: Install additional packages
-  spinner.start(`Installing ${dependencies.size} additional packages...`);
-  try {
-    const installCmd = answers.packageManager === 'npm' ? 'npm install' : `${answers.packageManager} add`;
-    if (dependencies.size > 0) {
-      await execAsync(`${installCmd} ${Array.from(dependencies).join(' ')}`, { cwd: targetDir });
-    }
+  if (answers.skipInstall) {
+    spinner.info('Skipping package installation as requested.');
+  } else {
+    spinner.start(`Installing ${resources.dependencies.length} additional packages...`);
+    try {
+      if (resources.dependencies.length > 0) {
+        const cmd = answers.packageManager === 'npm' ? 'install' : 'add';
+        await safeExec(answers.packageManager, [cmd, ...resources.dependencies], { cwd: targetDir });
+      }
 
-    if (devDependencies.size > 0) {
-      const devCmd = answers.packageManager === 'npm' ? 'npm install -D' : `${answers.packageManager} add -D`;
-      await execAsync(`${devCmd} ${Array.from(devDependencies).join(' ')}`, { cwd: targetDir });
+      if (resources.devDependencies.length > 0) {
+        const cmd = answers.packageManager === 'npm' ? 'install' : 'add';
+        const devFlag = answers.packageManager === 'npm' ? '-D' : '--dev';
+        await safeExec(answers.packageManager, [cmd, devFlag, ...resources.devDependencies], { cwd: targetDir });
+      }
+      spinner.succeed('Additional packages installed.');
+    } catch (err) {
+      spinner.warn('Some packages failed to install. You may need to install them manually.');
+      console.error(err);
     }
-    spinner.succeed('Additional packages installed.');
-  } catch (err) {
-    spinner.warn('Some packages failed to install. You may need to install them manually.');
-    console.error(err);
   }
 
   // Step 3: Inject custom files and templates
   spinner.start('Generating and injecting custom modules...');
   const tplData = { ...answers };
 
-  for (const injection of injections) {
-    const fullSrcPath = path.join(TEMPLATES_DIR, injection.src);
-    const fullDestPath = path.join(targetDir, injection.dest);
+  // Parallel file writing
+  await Promise.all(resources.files.map(async (file) => {
+    const fullSrcPath = path.join(TEMPLATES_DIR, file.src);
+    const fullDestPath = path.join(targetDir, file.dest);
 
-    if (injection.type === 'render') {
+    if (file.type === 'render') {
       await writeRendered(fullSrcPath, fullDestPath, tplData);
     } else {
       await fs.ensureDir(path.dirname(fullDestPath));
       await fs.copy(fullSrcPath, fullDestPath);
     }
-  }
+  }));
+
+  // Step 4: Infrastructure & AST Injection
   await updateNestCliConfig(targetDir, answers);
 
-  if (Object.keys(dockerServices).length > 0) {
-    await updateDockerCompose(targetDir, dockerServices);
+  if (Object.keys(resources.dockerServices).length > 0) {
+    await updateDockerCompose(targetDir, resources.dockerServices);
   }
+
+  for (const injection of resources.injections) {
+    await injectModuleToAppModule(targetDir, injection);
+  }
+
+  await updatePackageJsonScripts(targetDir);
 
   spinner.succeed('Modules injected successfully.');
 
-  // Step 4: Display Summary
+  // Step 5: Display Summary
   console.log('');
   console.log(chalk.bold.green('✅ Scaffolding complete!'));
   console.log('');
@@ -137,13 +232,12 @@ export async function generateProject(answers: PromptAnswers): Promise<void> {
 
 /**
  * Adds a single feature to an existing project.
- * Uses AST manipulation to update app.module.ts.
  */
 export async function addFeature(featureName: string, answers: PromptAnswers): Promise<void> {
   const targetDir = process.cwd();
-  const packageJsonPath = path.join(targetDir, 'package.json');
+  const packageJsonPath = path.join(targetDir, PACKAGE_JSON_FILE);
 
-  if (!fs.existsSync(packageJsonPath) || !fs.existsSync(path.join(targetDir, 'src/app.module.ts'))) {
+  if (!fs.existsSync(packageJsonPath) || !fs.existsSync(path.join(targetDir, APP_MODULE_FILE))) {
     throw new Error('This command must be run from the root of a NestJS project.');
   }
 
@@ -156,10 +250,9 @@ export async function addFeature(featureName: string, answers: PromptAnswers): P
     throw new Error(`Unknown feature: ${featureName}`);
   }
 
-  // Guard: check if any of the feature's files already exist to prevent silent overwrites
   if (feature.files) {
     const existingFiles = feature.files(answers)
-      .filter(f => f.type !== 'copy') // only check rendered files (these are the meaningful ones)
+      .filter(f => f.type !== 'copy') 
       .map(f => path.join(targetDir, f.dest))
       .filter(p => fs.existsSync(p));
 
@@ -175,62 +268,68 @@ export async function addFeature(featureName: string, answers: PromptAnswers): P
 
   const spinner = ora(`Adding feature ${chalk.cyan(feature.name)}...`).start();
 
-  // 1. Install dependencies
-  const deps = feature.dependencies || [];
-  const devDeps = feature.devDependencies || [];
+  const resources = resolveFeatureResources([feature], answers);
 
-  if (deps.length > 0) {
-    spinner.text = `Installing dependencies for ${feature.name}...`;
-    const installCmd = packageManager === 'npm' ? 'npm install' : `${packageManager} add`;
-    await execAsync(`${installCmd} ${deps.join(' ')}`, { cwd: targetDir });
-  }
-
-  if (devDeps.length > 0) {
-    spinner.text = `Installing devDependencies for ${feature.name}...`;
-    const devCmd = packageManager === 'npm' ? 'npm install -D' : `${packageManager} add -D`;
-    await execAsync(`${devCmd} ${devDeps.join(' ')}`, { cwd: targetDir });
-  }
-
-  // 2. Inject files
-  if (feature.files) {
-    spinner.text = `Generating files for ${feature.name}...`;
-    const injections = feature.files(answers);
-    const tplData = { ...answers, projectName: pkg.name };
-
-    for (const injection of injections) {
-      const fullSrcPath = path.join(TEMPLATES_DIR, injection.src);
-      const fullDestPath = path.join(targetDir, injection.dest);
-
-      if (injection.type === 'render') {
-        await writeRendered(fullSrcPath, fullDestPath, tplData);
-      } else {
-        await fs.ensureDir(path.dirname(fullDestPath));
-        await fs.copy(fullSrcPath, fullDestPath);
-      }
+  try {
+    // 1. Install dependencies
+    if (resources.dependencies.length > 0) {
+      spinner.text = `Installing dependencies for ${feature.name}...`;
+      const cmd = packageManager === 'npm' ? 'install' : 'add';
+      await safeExec(packageManager, [cmd, ...resources.dependencies], { cwd: targetDir });
     }
+
+    if (resources.devDependencies.length > 0) {
+      spinner.text = `Installing devDependencies for ${feature.name}...`;
+      const cmd = packageManager === 'npm' ? 'install' : 'add';
+      const devFlag = packageManager === 'npm' ? '-D' : '--dev';
+      await safeExec(packageManager, [cmd, devFlag, ...resources.devDependencies], { cwd: targetDir });
+    }
+
+    // 2. Inject files
+    if (resources.files.length > 0) {
+      spinner.text = `Generating files for ${feature.name}...`;
+      const tplData = { ...answers, projectName: pkg.name };
+
+      await Promise.all(resources.files.map(async (file) => {
+        const fullSrcPath = path.join(TEMPLATES_DIR, file.src);
+        const fullDestPath = path.join(targetDir, file.dest);
+
+        if (file.type === 'render') {
+          await writeRendered(fullSrcPath, fullDestPath, tplData);
+        } else {
+          await fs.ensureDir(path.dirname(fullDestPath));
+          await fs.copy(fullSrcPath, fullDestPath);
+        }
+      }));
+    }
+
+    // 3. Auto-inject into app.module.ts
+    for (const injection of resources.injections) {
+      spinner.text = `Injecting ${injection.moduleName} into app.module.ts...`;
+      await injectModuleToAppModule(targetDir, injection);
+    }
+
+    await updateNestCliConfig(targetDir, answers);
+    await updatePackageJsonScripts(targetDir);
+
+    // 4. Update Docker
+    if (Object.keys(resources.dockerServices).length > 0) {
+      spinner.text = `Updating docker-compose.yml for ${feature.name}...`;
+      await updateDockerCompose(targetDir, resources.dockerServices);
+    }
+
+    spinner.succeed(`Feature ${chalk.cyan(feature.name)} added successfully!`);
+  } catch (err) {
+    spinner.fail(`Failed to add feature ${feature.name}.`);
+    throw err;
   }
-
-  // 3. Auto-inject into app.module.ts via AST manipulation
-  if (feature.injection) {
-    spinner.text = `Injecting ${feature.injection.moduleName} into app.module.ts...`;
-    await injectModuleToAppModule(targetDir, feature.injection);
-  }
-
-  await updateNestCliConfig(targetDir, answers);
-
-  if (feature.dockerServices) {
-    spinner.text = `Updating docker-compose.yml for ${feature.name}...`;
-    await updateDockerCompose(targetDir, feature.dockerServices);
-  }
-
-  spinner.succeed(`Feature ${chalk.cyan(feature.name)} added successfully!`);
 }
 
 /**
  * Updates nest-cli.json to include assets like .proto files in the build.
  */
 async function updateNestCliConfig(targetDir: string, answers: PromptAnswers): Promise<void> {
-  const configPath = path.join(targetDir, 'nest-cli.json');
+  const configPath = path.join(targetDir, NEST_CLI_CONFIG_FILE);
   if (!fs.existsSync(configPath)) return;
 
   try {
@@ -239,8 +338,7 @@ async function updateNestCliConfig(targetDir: string, answers: PromptAnswers): P
 
     const assets = new Set(config.compilerOptions.assets || []);
 
-    // Add gRPC proto files to assets if gRPC is used
-    if (answers.protocols?.includes('gRPC')) {
+    if (answers.protocols?.includes(PROTOCOLS.GRPC)) {
       assets.add('**/*.proto');
     }
 
@@ -251,5 +349,30 @@ async function updateNestCliConfig(targetDir: string, answers: PromptAnswers): P
     }
   } catch (err) {
     console.error(chalk.yellow('\n⚠️  Could not update nest-cli.json assets. You may need to add them manually.'));
+  }
+}
+
+/**
+ * Hardens package.json scripts for production-grade testing (e2e cleanup).
+ */
+async function updatePackageJsonScripts(targetDir: string): Promise<void> {
+  const pkgPath = path.join(targetDir, PACKAGE_JSON_FILE);
+  if (!fs.existsSync(pkgPath)) return;
+
+  try {
+    const pkg = await fs.readJson(pkgPath);
+    pkg.scripts = pkg.scripts || {};
+    
+    // Add hardening flags to e2e tests
+    if (pkg.scripts['test:e2e']) {
+      // --runInBand: prevents parallel port conflicts
+      // --forceExit: ensures process exits even if DB pools take time to close
+      // --detectOpenHandles: helps developers debug leaks
+      pkg.scripts['test:e2e'] = 'jest --config ./test/jest-e2e.json --runInBand --forceExit --detectOpenHandles';
+    }
+    
+    await fs.writeJson(pkgPath, pkg, { spaces: 2 });
+  } catch (err) {
+    console.error(chalk.yellow('\n⚠️  Could not update package.json scripts.'));
   }
 }

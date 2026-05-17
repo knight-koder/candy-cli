@@ -28,8 +28,8 @@ export class RabbitMQPublisherService {
    * @param pattern  The routing key / queue name
    * @param data  The message payload
    */
-  emit<T>(pattern: string, data: T): Observable<any> {
-    return this.client.emit<any, T>(pattern, data);
+  emit<T>(pattern: string, data: T): Observable<T> {
+    return this.client.emit<T, T>(pattern, data);
   }
 
   /**

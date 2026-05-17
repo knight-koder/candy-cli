@@ -1,0 +1,40 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
+
+/**
+ * MongoDatabaseService — wraps the Mongoose Connection.
+ *
+ * Provides:
+ *   - `isHealthy()` for readiness/liveness probes
+ *   - `getConnection()` to obtain the raw Mongoose Connection
+ *
+ * Prefer using the injected Mongoose models (via @InjectModel) in your
+ * domain services rather than the raw connection directly.
+ */
+@Injectable()
+export class MongoDatabaseService {
+  private readonly logger = new Logger(MongoDatabaseService.name);
+
+  constructor(@InjectConnection() private readonly connection: Connection) {}
+
+  /** Returns true when the Mongoose connection state is 'connected' (1). */
+  async isHealthy(): Promise<boolean> {
+    try {
+      // readyState: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+      const isConnected = this.connection.readyState === 1;
+      if (!isConnected) {
+        this.logger.warn(`MongoDB readyState: ${this.connection.readyState}`);
+      }
+      return isConnected;
+    } catch (err) {
+      this.logger.error('MongoDB health check failed', err);
+      return false;
+    }
+  }
+
+  /** Exposes the raw Mongoose Connection. */
+  getConnection(): Connection {
+    return this.connection;
+  }
+}

@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 import {
-  runAddPrompts,
-  runPrompts
-} from "./chunk-M5LOJY2U.js";
-import {
   addFeature,
   generateProject
-} from "./chunk-NL6ZCLDN.js";
+} from "./chunk-GFIZSD4M.js";
 import {
   FEATURES
-} from "./chunk-ABI4NJYC.js";
+} from "./chunk-YYFPMQOX.js";
+import {
+  runAddPrompts,
+  runPrompts
+} from "./chunk-5C54PEVZ.js";
+import "./chunk-VJ3SJRPV.js";
 export {
   FEATURES,
   addFeature,

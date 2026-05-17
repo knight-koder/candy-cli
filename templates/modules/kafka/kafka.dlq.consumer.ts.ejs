@@ -8,7 +8,7 @@ export class KafkaConsumerController {
    * will be forwarded to 'my-topic.dlq'.
    */
   @MessagePattern('my-topic')
-  async handleMessage(@Payload() message: any): Promise<void> {
+  async handleMessage(@Payload() message: unknown): Promise<void> {
     console.log('Received Kafka message:', message);
     // Add your business logic here.
     // Throw an error to trigger retry/DLQ handling.
@@ -18,7 +18,7 @@ export class KafkaConsumerController {
    * Dead Letter Queue consumer — processes messages that failed all retries.
    */
   @EventPattern('my-topic.dlq')
-  async handleDLQ(@Payload() data: any): Promise<void> {
+  async handleDLQ(@Payload() data: unknown): Promise<void> {
     console.error('Message moved to DLQ:', data);
     // Persist to database, alert, etc.
   }
