@@ -1,7 +1,7 @@
 # 🍬 Candy Nest CLI
 
 > **Scaffold Production-Ready NestJS Microservices in Seconds.**  
-> An architect-grade toolkit that generates hardened, secure, and fully-wired services with all the "boring" production parts already done.
+> A Simple CLI toolkit that generates secure, and fully-wired services with all the "boring"  parts already done.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
@@ -9,14 +9,13 @@
 
 ---
 
-## 🚀 The "Candy" Advantage
+## 🚀 Advantage
 
-Setting up a production microservice usually takes hours of manual wiring. **Candy Nest CLI** handles the heavy lifting through AST-powered code generation, giving you:
+Setting up a microservice usually takes hours of manual wiring. **Candy Nest CLI** handles the heavy lifting through code generation, giving you:
 
-- 🛡️ **Hardened Security**: Global Rate Limiting, secure CORS policies, and Payload Validation (DTOs) out of the box.
-- 📡 **Resilient Networking**: Automatic Kafka dual-listener setup and Docker healthcheck-aware service linking.
-- 🧪 **Pro-Grade Testing**: Automated Regression E2E suite that validates your *actual* infrastructure (DBs, Brokers, Caching).
-- 🏗️ **Architect-Grade Linking**: Zero-manual-wiring for Redis, Kafka, BullMQ, and Postgres.
+- 🛡️ **Security**: Global Rate Limiting, secure CORS policies, and Payload Validation (DTOs) out of the box.
+- 🧪 **Testing**: Automated Regression E2E suite that validates your *actual* infrastructure (DBs, Brokers, Caching).
+- 🏗️ **Linking**: Zero-manual-wiring for Redis, Kafka, BullMQ, and Postgres.
 
 ---
 
