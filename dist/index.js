@@ -119,6 +119,9 @@ ${CLI_FEATURE_LIST.map((f) => `  - ${f}`).join("\n")}`).action(async (featureNam
 }
 
 // src/index.ts
+import { createRequire } from "module";
+var require2 = createRequire(import.meta.url);
+var pkg = require2("../package.json");
 var MIN_NODE_VERSION = 18;
 var currentMajorVersion = parseInt(process.versions.node.split(".")[0]);
 if (currentMajorVersion < MIN_NODE_VERSION) {
@@ -126,7 +129,7 @@ if (currentMajorVersion < MIN_NODE_VERSION) {
   process.exit(1);
 }
 var program = new Command();
-program.name("candy-nest-cli").description("A professional CLI to scaffold and extend scalable NestJS microservices").version("1.0.0");
+program.name("candy-nest-cli").description("A professional CLI to scaffold and extend scalable NestJS microservices").version(pkg.version);
 registerInitCommand(program);
 registerAddCommand(program);
 program.parse();

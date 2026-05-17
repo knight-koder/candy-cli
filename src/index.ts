@@ -1,6 +1,10 @@
 import { Command } from 'commander';
 import { registerInitCommand } from './commands/init.js';
 import { registerAddCommand } from './commands/add.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 
 // Node version check for ESM and spawn stability
 const MIN_NODE_VERSION = 18;
@@ -15,7 +19,7 @@ const program = new Command();
 program
   .name('candy-nest-cli')
   .description('A professional CLI to scaffold and extend scalable NestJS microservices')
-  .version('1.0.0');
+  .version(pkg.version);
 
 registerInitCommand(program);
 registerAddCommand(program);
