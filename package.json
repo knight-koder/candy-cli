@@ -1,6 +1,6 @@
 {
   "name": "candy-nest-cli",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Scaffolding CLI for Production-grade NestJS microservices. Interactively generates scalable services with REST, GraphQL, gRPC, Kafka, RabbitMQ, BullMQ, Redis, OpenTelemetry, Prometheus, Swagger, circuit breakers, and DLQs.",
   "main": "dist/index.js",
   "type": "module",
