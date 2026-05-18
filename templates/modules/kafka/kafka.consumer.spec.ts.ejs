@@ -20,7 +20,7 @@ describe('KafkaConsumerController', () => {
     await expect(controller.handleMessage({ key: 'value' })).resolves.not.toThrow();
   });
 
-  it('handleEvent should process a Kafka event without throwing', async () => {
-    await expect(controller.handleEvent({ event: 'test' })).resolves.not.toThrow();
+  it('handleDLQ should process a dead-letter message without throwing', async () => {
+    await expect(controller.handleDLQ({ event: 'test' })).resolves.not.toThrow();
   });
 });

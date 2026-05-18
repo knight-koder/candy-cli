@@ -1,7 +1,8 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppThrottlerGuard } from './app.throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { HealthModule } from './health/health.module';
 
@@ -84,7 +85,9 @@ import { ResiliencyModule } from './resiliency/resiliency.module';
           .valid('development', 'production', 'test')
           .default('development'),
         PORT: Joi.number().default(3000),
-        CORS_ORIGIN: Joi.string().default(''),
+        <% if (protocols.includes('REST') || protocols.includes('GraphQL')) { %>
+        CORS_ORIGIN: Joi.string().allow('').default(''),
+        <% } %>
         THROTTLE_TTL: Joi.number().default(60000),
         THROTTLE_LIMIT: Joi.number().default(100),
         <% if (database && databases.includes('PostgreSQL')) { %>
@@ -208,8 +211,8 @@ import { ResiliencyModule } from './resiliency/resiliency.module';
     <% if (protocols.includes('REST')) { %>
     AppService,
     <% } %>
-    // Applies ThrottlerGuard globally to all routes
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Applies AppThrottlerGuard globally to all routes
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {

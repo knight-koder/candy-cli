@@ -1,13 +1,13 @@
 import type { FeatureConfig, PromptAnswers } from './types.js';
-import { 
+import {
   NEST_CLI_CONFIG_FILE,
   APP_MODULE_FILE,
   PACKAGE_JSON_FILE,
   MAIN_TS_FILE,
   ENV_EXAMPLE_FILE,
   DOCKERFILE_FILE,
-  ADAPTERS, 
-  FEATURE_NAMES 
+  ADAPTERS,
+  FEATURE_NAMES
 } from '../constants/index.js';
 
 export const baseFeature: FeatureConfig = {
@@ -41,6 +41,7 @@ export const baseFeature: FeatureConfig = {
     { src: 'modules/testing/regression.e2e-spec.ts.ejs', dest: 'test/regression.e2e-spec.ts', type: 'render' },
     { src: 'modules/testing/jest-e2e.json.ejs', dest: 'test/jest-e2e.json', type: 'render' },
     { src: 'README.md.ejs', dest: 'README.md', type: 'render' },
+    { src: 'app.throttler.guard.ts.ejs', dest: 'src/app.throttler.guard.ts', type: 'render' },
   ],
 };
 

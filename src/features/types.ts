@@ -39,6 +39,7 @@ export interface PromptAnswers {
   apiDocs: boolean;
   opossum: boolean;
   skipInstall?: boolean;
+  rateLimiting?: boolean;
 }
 
 export interface FileInjection {
